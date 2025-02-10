@@ -140,7 +140,7 @@ def download_video(link, filename, season, episode, total_episodes):
         "progress_hooks": [lambda d: progress_hook(d, season, episode, total_episodes)],
         "no_warnings": True,
         "logger": MyLogger(),
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+        "format": "bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
         "merge_output_format": "mp4",
         "postprocessors": [],
     }
@@ -156,11 +156,13 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name):
     total_episodes = len(sibnet_links) + len(vidmoly_links)
     episode_counter = 1
 
+    print(f"📥 Téléchargement : {folder_name}")
+
     for link in sibnet_links + vidmoly_links:
         filename = os.path.join(download_dir, f"{'film' if season == 'film' else f's{season}_e{episode_counter}'}.mp4")
-        print(f"📥 Téléchargement : {filename}")
         download_video(link, filename, season, episode_counter, total_episodes)
         episode_counter += 1
+
 
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
