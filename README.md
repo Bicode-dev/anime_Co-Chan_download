@@ -1,7 +1,9 @@
-Install
+🌗Install🌓
 
-termux :
+📱termux📱 :
+
 `bash Install-termux-shorcut-set.sh`
 
-windows
+💻windows🖥️ :
+
 juste open `Setup.bat`
