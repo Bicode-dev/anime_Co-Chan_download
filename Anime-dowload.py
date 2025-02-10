@@ -50,7 +50,7 @@ def progress_hook(d, season, episode, total_episodes):
     """Affiche la progression du téléchargement"""
     if d["status"] == "downloading":
         percent = d["_percent_str"].strip()
-        sys.stdout.write(f"\r[S{season} E{episode}/{total_episodes}] {percent} complet")
+        sys.stdout.write(f"\r🔄️ [S{season} E{episode}/{total_episodes}] {percent} complet")
         sys.stdout.flush()
     elif d["status"] == "finished":
         sys.stdout.write(f"\r✅ [S{season} E{episode}/{total_episodes}] Téléchargement terminé !\n")
