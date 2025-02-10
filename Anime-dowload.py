@@ -156,7 +156,8 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name):
     total_episodes = len(sibnet_links) + len(vidmoly_links)
     episode_counter = 1
 
-    print(f"📥 Téléchargement : {folder_name}")
+    download_dir = os.path.join(get_download_path(), folder_name)
+    print(f"📥 Téléchargement : {download_dir}")
 
     for link in sibnet_links + vidmoly_links:
         filename = os.path.join(download_dir, f"{'film' if season == 'film' else f's{season}_e{episode_counter}'}.mp4")
