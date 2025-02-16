@@ -62,10 +62,11 @@ goto :eof
 
 :: Fonction pour télécharger le fichier
 :download_file
+pip install -U yt-dlp
+cls
 echo [INFO] Téléchargement du fichier .py depuis l'URL GitHub...
 set URL=https://raw.githubusercontent.com/les-developpeur/anime-soma/refs/heads/main/Anime-dowload.py
 set FILE_NAME=anime-dowload.py
-
 curl -o %FILE_NAME% %URL%
 
 :: Vérifier si le fichier a bien été téléchargé
