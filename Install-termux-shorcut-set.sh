@@ -14,7 +14,8 @@ echo "Mise à jour de Termux et installation de Python, pip et git..."
 pkg update && pkg upgrade -y
 pkg install python git -y
 pip install --upgrade pip
-pip install requests yt-dlp beautifulsoup4 numpy
+pip install requests beautifulsoup4 numpy
+pip install -U yt-dlp
 
 
 # Télécharger le fichier Python Anime-dowload-termux.py depuis GitHub
