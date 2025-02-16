@@ -7,8 +7,6 @@ import re
 import time
 from yt_dlp import YoutubeDL
 
-os.system('Anime-dowload')
-
 class MyLogger(object):
     def debug(self, msg):
         pass
