@@ -8,8 +8,8 @@ call :check_python
 :: Vérifier si pip est installé
 call :check_pip
 
-:: Vérifier si youtube-dl est installé et sa version
-call :check_youtube_dl
+:: Vérifier si yt-dlp et autres modules sont installés
+call :check_python_packages
 
 :: Télécharger le fichier .py depuis l'URL GitHub
 call :download_file
@@ -45,28 +45,18 @@ if %errorlevel% neq 0 (
 )
 goto :eof
 
-:: Fonction pour vérifier si youtube-dl est installé et sa version
-:check_youtube_dl
-for /f "delims=" %%v in ('python -m youtube_dl --version 2^>nul') do set YDL_VERSION=%%v
+:: Fonction pour vérifier si les packages Python sont installés
+:check_python_packages
+set PACKAGES=yt-dlp requests beautifulsoup4 numpy
 
-if not defined YDL_VERSION (
-    echo [ERREUR] youtube-dl n'est pas installé.
-    echo [INFO] Installation de youtube-dl...
-    python -m pip install requests
-    python -m pip install youtube-dl
-    set YDL_VERSION=2021.12.17
-) else (
-    echo [INFO] youtube-dl installé : version %YDL_VERSION%
-)
-
-:: Vérifier la version correcte de youtube-dl
-if not "%YDL_VERSION%"=="2021.12.17" (
-    echo [ERREUR] Version incorrecte de youtube-dl : %YDL_VERSION%
-    echo [INFO] Mise à jour vers la version 2021.12.17...
-    python -m pip install --force-reinstall youtube-dl==2021.12.17
-    echo [OK] Mise à jour effectuée !
-) else (
-    echo [OK] La version de youtube-dl est correcte.
+for %%p in (%PACKAGES%) do (
+    python -c "import %%p" >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo [INFO] Installation de %%p...
+        python -m pip install %%p
+    ) else (
+        echo [INFO] Le package %%p est déjà installé.
+    )
 )
 goto :eof
 
