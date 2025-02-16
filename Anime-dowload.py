@@ -4,7 +4,8 @@ import shutil
 import sys
 import requests
 import re
-from youtube_dl import YoutubeDL
+import time
+from yt_dlp import YoutubeDL
 
 class MyLogger(object):
     def debug(self, msg):
@@ -14,6 +15,7 @@ class MyLogger(object):
         pass
 
     def error(self, msg):
+        # On affiche directement l'erreur ici, mais l'écrasement sera fait ailleurs
         print(msg)
 
 def check_disk_space(min_gb=1):
@@ -50,7 +52,7 @@ def progress_hook(d, season, episode, total_episodes):
     """Affiche la progression du téléchargement"""
     if d["status"] == "downloading":
         percent = d["_percent_str"].strip()
-        sys.stdout.write(f"\r🔄️ [S{season} E{episode}/{total_episodes}] {percent} complet")
+        sys.stdout.write(f"\r🔄 [S{season} E{episode}/{total_episodes}] {percent} complet")
         sys.stdout.flush()
     elif d["status"] == "finished":
         sys.stdout.write(f"\r✅ [S{season} E{episode}/{total_episodes}] Téléchargement terminé !\n")
@@ -87,6 +89,7 @@ def check_available_languages(base_url, name):
 
     return available_languages
 
+
 def check_seasons(base_url, name, language):
     """Vérifie les saisons et films disponibles"""
     available_seasons = []
@@ -112,6 +115,27 @@ def check_seasons(base_url, name, language):
 
     return available_seasons
 
+def check_http_403(url):
+    """Vérifie si l'URL retourne un code HTTP 403 avec 5 tentatives"""
+    attempts = 0
+    while attempts < 5:
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 403:
+                print(f"⛔ Tentative {attempts + 1} échouée : Sibnet a renvoyé un code 403. Nouvelle tentatives veuillez patienter.")
+                time.sleep(10)  # Attente de 10 secondes avant de réessayer
+                attempts += 1
+            else:
+                return False
+        except requests.exceptions.RequestException as e:
+            print(f"⛔ Erreur de connexion : {e}")
+            return False
+
+    # Après 5 tentatives infructueuses, afficher un message de bannissement
+    print("⛔ Sibnet vous a temporairement banni, veuillez réessayer dans un maximum de 2 jours.")
+    time.sleep(20)  # Pause de 20 secondes pour permettre à l'utilisateur de voir le message
+    return True
+
 def extract_video_links(url):
     """Extrait les liens vidéo Sibnet et Vidmoly"""
     response = requests.get(url)
@@ -135,18 +159,26 @@ def download_video(link, filename, season, episode, total_episodes):
 
     ydl_opts = {
         "outtmpl": filename,
-        "quiet": True,
+        "quiet": False,
         "ignoreerrors": True,
         "progress_hooks": [lambda d: progress_hook(d, season, episode, total_episodes)],
         "no_warnings": True,
-        "logger": MyLogger(),
         "format": "bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
         "merge_output_format": "mp4",
-        "postprocessors": [],
+        "logger": MyLogger(),
+        "socket_timeout": 60,  # Augmenter le délai d'attente avant un timeout (en secondes)
+        "retries": 15,  # Nombre de tentatives en cas d'échec
     }
 
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([link])
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([link])
+    except Exception as e:
+        # Efface la ligne d'erreur précédente et affiche l'erreur
+        sys.stdout.write("\r")  # Efface la ligne de l'erreur précédente
+        sys.stdout.flush()
+        print(f"⛔ Erreur lors du téléchargement: {e}")
+        return
 
 def download_videos(sibnet_links, vidmoly_links, season, folder_name):
     """Télécharge toutes les vidéos d'une saison"""
@@ -156,14 +188,29 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name):
     total_episodes = len(sibnet_links) + len(vidmoly_links)
     episode_counter = 1
 
-    download_dir = os.path.join(get_download_path(), folder_name)
     print(f"📥 Téléchargement [S{season}] : {download_dir}")
 
     for link in sibnet_links + vidmoly_links:
+        # Afficher le message de chargement animé avec des points entre chaque épisode
+        sys.stdout.write("🌐 Chargement")
+        sys.stdout.flush()
+
+        # Afficher des points pour l'animation pendant 2 secondes
+        for _ in range(3):
+            time.sleep(1)
+            sys.stdout.write(".")
+            sys.stdout.flush()
+
+        sys.stdout.write("\r")  # Efface la ligne de chargement
+        sys.stdout.flush()
+
+        # Vérifie si le lien mène à un code HTTP 403 avant de commencer le téléchargement
+        if check_http_403(link):
+            continue  # Si le code 403 est détecté, on passe à l'épisode suivant
+
         filename = os.path.join(download_dir, f"{'film' if season == 'film' else f's{season}_e{episode_counter}'}.mp4")
         download_video(link, filename, season, episode_counter, total_episodes)
         episode_counter += 1
-
 
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
