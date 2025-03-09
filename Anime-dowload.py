@@ -47,6 +47,22 @@ def check_disk_space(min_gb=1):
         free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024 ** 3)
 
     return free_space_gb >= min_gb
+    
+def generate_filename(directory, season, episode):
+    """Génère le nom de fichier avec ou sans suffixe P{i} selon les fichiers existants."""
+    base_name = f"S{season}_E{episode}"
+    filename = os.path.join(directory, f"{base_name}.mp4")
+
+    # Vérifier s'il existe une variante avec P{i}
+    i = 1
+    while os.path.exists(os.path.join(directory, f"S{season}P{i}_E{episode}.mp4")):
+        i += 1
+
+    # Si "-P1" existe, alors on applique le format S{season}P{i}_E{episode}.mp4
+    if i > 1:
+        filename = os.path.join(directory, f"S{season}P{i}_E{episode}.mp4")
+
+    return filename
 
 def progress_hook(d, season, episode, total_episodes):
     """Affiche la progression du téléchargement"""
@@ -199,24 +215,24 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name):
     print(f"📥 Téléchargement [S{season}] : {download_dir}")
 
     for link in sibnet_links + vidmoly_links:
-        # Afficher le message de chargement animé avec des points entre chaque épisode
+        # Animation de chargement
         sys.stdout.write("🌐 Chargement")
         sys.stdout.flush()
-
-        # Afficher des points pour l'animation pendant 2 secondes
         for _ in range(3):
             time.sleep(1)
             sys.stdout.write(".")
             sys.stdout.flush()
-
         sys.stdout.write("\r")  # Efface la ligne de chargement
         sys.stdout.flush()
 
-        # Vérifie si le lien mène à un code HTTP 403 avant de commencer le téléchargement
+        # Vérifie si le lien mène à un code HTTP 403 avant de télécharger
         if check_http_403(link):
-            continue  # Si le code 403 est détecté, on passe à l'épisode suivant
+            continue  # Passer à l'épisode suivant si le lien est bloqué
 
-        filename = os.path.join(download_dir, f"{'film' if season == 'film' else f's{season}_e{episode_counter}'}.mp4")
+        # Gestion des parties (P{i}) si plusieurs fichiers existent pour un épisode
+        part_number = f"P{episode_counter}" if total_episodes > 1 else ""
+
+        filename = os.path.join(download_dir, f"{'film' if season == 'film' else f'S{season}{part_number}_E{episode_counter}'}.mp4")
         download_video(link, filename, season, episode_counter, total_episodes)
         episode_counter += 1
 
