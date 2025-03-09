@@ -96,27 +96,20 @@ def check_seasons(base_url, name, language):
     season = 1
 
     while True:
-        found = False
+        found_any = False
         
-        # Vérifier l'URL standard
-        url_variants = [
-            f"{base_url}{name}/saison{season}/{language}/episodes.js",
-            f"{base_url}{name}/saison{season}-1/{language}/episodes.js"
-        ]
-        
-        # Ajouter les variantes jusqu'à saisonX-10
-        for i in range(2, 11):
-            url_variants.append(f"{base_url}{name}/saison{season}-{i}/{language}/episodes.js")
+        # Vérifier l'URL standard et toutes les variantes jusqu'à saisonX-10
+        url_variants = [f"{base_url}{name}/saison{season}/{language}/episodes.js"]
+        url_variants += [f"{base_url}{name}/saison{season}-{i}/{language}/episodes.js" for i in range(1, 11)]
         
         for url in url_variants:
             response = requests.get(url)
             if response.status_code == 200 and response.text.strip():
                 print(f"\u2714 Saison {season} trouvée: {url}")
                 available_seasons.append((season, url))
-                found = True
-                break  # On sort dès qu'on trouve une correspondance
+                found_any = True
         
-        if not found:
+        if not found_any:
             break  # Arrêter la boucle si aucune version de la saison n'est trouvée
         
         season += 1
@@ -129,7 +122,6 @@ def check_seasons(base_url, name, language):
         available_seasons.append(("film", film_url))
 
     return available_seasons
-
 
 def check_http_403(url):
     """Vérifie si l'URL retourne un code HTTP 403 avec 5 tentatives"""
