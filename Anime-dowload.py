@@ -214,27 +214,32 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name):
 
     print(f"📥 Téléchargement [S{season}] : {download_dir}")
 
-    for link in sibnet_links + vidmoly_links:
-        # Animation de chargement
-        sys.stdout.write("🌐 Chargement")
+for link in sibnet_links + vidmoly_links:
+    # Afficher le message de chargement animé avec des points entre chaque épisode
+    sys.stdout.write("🌐 Chargement")
+    sys.stdout.flush()
+
+    # Afficher des points pour l'animation pendant 2 secondes
+    for _ in range(3):
+        time.sleep(1)
+        sys.stdout.write(".")
         sys.stdout.flush()
-        for _ in range(3):
-            time.sleep(1)
-            sys.stdout.write(".")
-            sys.stdout.flush()
-        sys.stdout.write("\r")  # Efface la ligne de chargement
-        sys.stdout.flush()
 
-        # Vérifie si le lien mène à un code HTTP 403 avant de télécharger
-        if check_http_403(link):
-            continue  # Passer à l'épisode suivant si le lien est bloqué
+    sys.stdout.write("\r")  # Efface la ligne de chargement
+    sys.stdout.flush()
 
-        # Gestion des parties (P{i}) si plusieurs fichiers existent pour un épisode
-        part_number = f"P{episode_counter}" if total_episodes > 1 else ""
+    # Vérifie si le lien mène à un code HTTP 403 avant de commencer le téléchargement
+    if check_http_403(link):
+        continue  # Si le code 403 est détecté, on passe à l'épisode suivant
 
-        filename = os.path.join(download_dir, f"{'film' if season == 'film' else f'S{season}{part_number}_E{episode_counter}'}.mp4")
-        download_video(link, filename, season, episode_counter, total_episodes)
-        episode_counter += 1
+    # Si l'URL contient {i}, alors on utilise P{i}, sinon on utilise simplement S{season}_E{episode_counter}
+    if '{i}' in link:
+        filename = os.path.join(download_dir, f"S{season}_P{episode_counter}_E{episode_counter}.mp4")
+    else:
+        filename = os.path.join(download_dir, f"S{season}_E{episode_counter}.mp4")
+    
+    download_video(link, filename, season, episode_counter, total_episodes)
+    episode_counter += 1
 
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
