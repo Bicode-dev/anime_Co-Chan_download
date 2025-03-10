@@ -90,7 +90,7 @@ def check_available_languages(base_url, name):
     return available_languages
 
 def check_seasons(base_url, name, language):
-    """Vérifie les saisons et films disponibles avec des variantes de numérotation"""
+    """Vérifie les saisons, films et OAVs disponibles avec des variantes de numérotation"""
     available_seasons = []
     season_info = {}  # Pour stocker les informations sur chaque saison et ses variantes
     
@@ -147,6 +147,17 @@ def check_seasons(base_url, name, language):
         print(f"\u2714 Film trouvé: {film_url}")
         season_info['film'] = {
             'main_url': film_url,
+            'variants': [],
+            'has_main': True
+        }
+    
+    # Vérification des OAVs
+    oav_url = f"{base_url}{name}/oav/{language}/episodes.js"
+    response = requests.get(oav_url)
+    if response.status_code == 200 and response.text.strip():
+        print(f"\u2714 OAV trouvé: {oav_url}")
+        season_info['oav'] = {
+            'main_url': oav_url,
             'variants': [],
             'has_main': True
         }
@@ -311,11 +322,11 @@ def main():
     last_processed = {}  # Pour suivre la dernière saison/variante traitée
     
     for season, url, is_variant, variant_num in seasons:
-        # Si c'est un film, traiter séparément
-        if season == "film":
+        # Si c'est un film ou un OAV, traiter séparément
+        if season in ["film", "oav"]:
             sibnet_links, vidmoly_links = extract_video_links(url)
             if sibnet_links or vidmoly_links:
-                download_videos(sibnet_links, vidmoly_links, "film", folder_name)
+                download_videos(sibnet_links, vidmoly_links, season, folder_name)
             continue
         
         sibnet_links, vidmoly_links = extract_video_links(url)
