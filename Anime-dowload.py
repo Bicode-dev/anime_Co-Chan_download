@@ -47,22 +47,6 @@ def check_disk_space(min_gb=1):
         free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024 ** 3)
 
     return free_space_gb >= min_gb
-    
-def generate_filename(directory, season, episode):
-    """Génère le nom de fichier avec ou sans suffixe P{i} selon les fichiers existants."""
-    base_name = f"S{season}_E{episode}"
-    filename = os.path.join(directory, f"{base_name}.mp4")
-
-    # Vérifier s'il existe une variante avec P{i}
-    i = 1
-    while os.path.exists(os.path.join(directory, f"S{season}P{i}_E{episode}.mp4")):
-        i += 1
-
-    # Si "-P1" existe, alors on applique le format S{season}P{i}_E{episode}.mp4
-    if i > 1:
-        filename = os.path.join(directory, f"S{season}P{i}_E{episode}.mp4")
-
-    return filename
 
 def progress_hook(d, season, episode, total_episodes):
     """Affiche la progression du téléchargement"""
@@ -105,28 +89,54 @@ def check_available_languages(base_url, name):
 
     return available_languages
 
-
 def check_seasons(base_url, name, language):
     """Vérifie les saisons et films disponibles avec des variantes de numérotation"""
     available_seasons = []
+    season_info = {}  # Pour stocker les informations sur chaque saison et ses variantes
+    
     season = 1
-
     while True:
         found_any = False
         
-        # Vérifier l'URL standard et toutes les variantes jusqu'à saisonX-10
-        url_variants = [f"{base_url}{name}/saison{season}/{language}/episodes.js"]
-        url_variants += [f"{base_url}{name}/saison{season}-{i}/{language}/episodes.js" for i in range(1, 11)]
+        # Vérifier l'URL standard pour cette saison
+        main_url = f"{base_url}{name}/saison{season}/{language}/episodes.js"
+        response = requests.get(main_url)
         
-        for url in url_variants:
-            response = requests.get(url)
+        if response.status_code == 200 and response.text.strip():
+            print(f"\u2714 Saison {season} trouvée: {main_url}")
+            
+            # Initialiser les infos de cette saison
+            season_info[season] = {
+                'main_url': main_url,
+                'variants': [],
+                'has_main': True
+            }
+            
+            found_any = True
+        else:
+            # Si pas de saison principale, vérifier si on a des variantes
+            season_info[season] = {
+                'main_url': None,
+                'variants': [],
+                'has_main': False
+            }
+        
+        # Vérifier toutes les variantes pour cette saison
+        for i in range(1, 11):
+            variant_url = f"{base_url}{name}/saison{season}-{i}/{language}/episodes.js"
+            response = requests.get(variant_url)
+            
             if response.status_code == 200 and response.text.strip():
-                print(f"\u2714 Saison {season} trouvée: {url}")
-                available_seasons.append((season, url))
+                print(f"\u2714 Saison {season}-{i} trouvée: {variant_url}")
+                season_info[season]['variants'].append((i, variant_url))
                 found_any = True
         
         if not found_any:
-            break  # Arrêter la boucle si aucune version de la saison n'est trouvée
+            # Si aucune URL principale ou variante n'a été trouvée pour cette saison,
+            # on la supprime du dictionnaire et on arrête la boucle
+            if season in season_info:
+                del season_info[season]
+            break
         
         season += 1
 
@@ -135,8 +145,22 @@ def check_seasons(base_url, name, language):
     response = requests.get(film_url)
     if response.status_code == 200 and response.text.strip():
         print(f"\u2714 Film trouvé: {film_url}")
-        available_seasons.append(("film", film_url))
-
+        season_info['film'] = {
+            'main_url': film_url,
+            'variants': [],
+            'has_main': True
+        }
+    
+    # Construire la liste finale des saisons à télécharger
+    for season_num, info in season_info.items():
+        # D'abord ajouter la saison principale si elle existe
+        if info['has_main']:
+            available_seasons.append((season_num, info['main_url'], False, 0))
+        
+        # Ensuite ajouter les variantes dans l'ordre
+        for variant_num, variant_url in sorted(info['variants']):
+            available_seasons.append((season_num, variant_url, True, variant_num))
+    
     return available_seasons
 
 def check_http_403(url):
@@ -204,15 +228,15 @@ def download_video(link, filename, season, episode, total_episodes):
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
 
-def download_videos(sibnet_links, vidmoly_links, season, folder_name):
+def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
     """Télécharge toutes les vidéos d'une saison"""
     download_dir = os.path.join(get_download_path(), folder_name)
     os.makedirs(download_dir, exist_ok=True)
 
     total_episodes = len(sibnet_links) + len(vidmoly_links)
-    episode_counter = 1
+    episode_counter = current_episode
 
-    print(f"📥 Téléchargement [S{season}] : {download_dir}")
+    print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {episode_counter})")
 
     # Vérification que les liens sont bien définis
     if not (sibnet_links or vidmoly_links):
@@ -237,15 +261,11 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name):
         if check_http_403(link):
             continue  # Si le code 403 est détecté, on passe à l'épisode suivant
 
-        # Si l'URL contient {i}, alors on utilise P{i}, sinon on utilise simplement S{season}_E{episode_counter}
-        if '{i}' in link:
-            filename = os.path.join(download_dir, f"S{season}_P{episode_counter}_E{episode_counter}.mp4")
-        else:
-            filename = os.path.join(download_dir, f"S{season}_E{episode_counter}.mp4")
+        # Format standard S{season}_E{episode_counter}
+        filename = os.path.join(download_dir, f"S{season}_E{episode_counter}.mp4")
         
         download_video(link, filename, season, episode_counter, total_episodes)
         episode_counter += 1
-
 
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
@@ -285,10 +305,47 @@ def main():
 
     seasons = check_seasons(base_url, formatted_url_name, selected_language)
     
-    for season, url in seasons:
+    # Dictionnaire pour suivre le nombre d'épisodes par saison et variante
+    episode_counters = {}
+    last_processed = {}  # Pour suivre la dernière saison/variante traitée
+    
+    for season, url, is_variant, variant_num in seasons:
+        # Si c'est un film, traiter séparément
+        if season == "film":
+            sibnet_links, vidmoly_links = extract_video_links(url)
+            if sibnet_links or vidmoly_links:
+                download_videos(sibnet_links, vidmoly_links, "film", folder_name)
+            continue
+        
         sibnet_links, vidmoly_links = extract_video_links(url)
-        if sibnet_links or vidmoly_links:
-            download_videos(sibnet_links, vidmoly_links, season, folder_name)
+        total_episodes = len(sibnet_links) + len(vidmoly_links)
+        
+        if not (sibnet_links or vidmoly_links):
+            print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
+            continue
+            
+        # Déterminer le numéro de l'épisode de départ
+        start_episode = 1  # Par défaut, commencer à 1
+        
+        # Si c'est une variante, vérifier si on a déjà traité la saison principale ou d'autres variantes
+        if is_variant:
+            if season in last_processed:
+                # Continuer depuis le dernier épisode de cette saison
+                start_episode = last_processed[season] + 1
+            else:
+                # Si c'est la première variante mais pas de saison principale, commencer à 1
+                start_episode = 1
+        else:
+            # Si c'est une saison principale, toujours commencer à 1
+            start_episode = 1
+        
+        print(f"♾️ Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
+        print(f"🔢 Épisodes: {start_episode} à {start_episode + total_episodes - 1}")
+        
+        download_videos(sibnet_links, vidmoly_links, season, folder_name, start_episode)
+        
+        # Mettre à jour le compteur pour cette saison
+        last_processed[season] = start_episode + total_episodes - 1
 
 if __name__ == "__main__":
     main()
