@@ -48,14 +48,14 @@ def check_disk_space(min_gb=1):
 
     return free_space_gb >= min_gb
 
-def progress_hook(d, season, episode, total_episodes):
+def progress_hook(d, season, episode, max_episode):
     """Affiche la progression du téléchargement"""
     if d["status"] == "downloading":
         percent = d["_percent_str"].strip()
-        sys.stdout.write(f"\r🔄 [S{season} E{episode}/{total_episodes}] {percent} complet")
+        sys.stdout.write(f"\r🔄 [S{season} E{episode}/{max_episode}] {percent} complet")
         sys.stdout.flush()
     elif d["status"] == "finished":
-        sys.stdout.write(f"\r✅ [S{season} E{episode}/{total_episodes}] Téléchargement terminé !\n")
+        sys.stdout.write(f"\r✅ [S{season} E{episode}/{max_episode}] Téléchargement terminé !\n")
         sys.stdout.flush()
 
 def get_download_path():
@@ -199,17 +199,17 @@ def extract_video_links(url):
 
     return sibnet_links, vidmoly_links
 
-def download_video(link, filename, season, episode, total_episodes):
+def download_video(link, filename, season, episode, max_episode):
     """Télécharge une vidéo en affichant la progression"""
     if not check_disk_space():
-        print(f"⛔ Espace disque insuffisant. Arrêt du téléchargement pour [S{season} E{episode}/{total_episodes}].")
+        print(f"⛔ Espace disque insuffisant. Arrêt du téléchargement pour [S{season} E{episode}/{max_episode}].")
         return
 
     ydl_opts = {
         "outtmpl": filename,
         "quiet": False,
         "ignoreerrors": True,
-        "progress_hooks": [lambda d: progress_hook(d, season, episode, total_episodes)],
+        "progress_hooks": [lambda d: progress_hook(d, season, episode, max_episode)],
         "no_warnings": True,
         "format": "bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
         "merge_output_format": "mp4",
@@ -234,9 +234,10 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
     os.makedirs(download_dir, exist_ok=True)
 
     total_episodes = len(sibnet_links) + len(vidmoly_links)
+    max_episode = current_episode + total_episodes - 1  # Calculer le dernier épisode
     episode_counter = current_episode
 
-    print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {episode_counter})")
+    print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {episode_counter} jusqu'à {max_episode})")
 
     # Vérification que les liens sont bien définis
     if not (sibnet_links or vidmoly_links):
@@ -262,9 +263,9 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
             continue  # Si le code 403 est détecté, on passe à l'épisode suivant
 
         # Format standard S{season}_E{episode_counter}
-        filename = os.path.join(download_dir, f"S{season}_E{episode_counter}.mp4")
+        filename = os.path.join(download_dir, f"s{season}_e{episode_counter}.mp4")
         
-        download_video(link, filename, season, episode_counter, total_episodes)
+        download_video(link, filename, season, episode_counter, max_episode)
         episode_counter += 1
 
 def main():
