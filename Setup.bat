@@ -1,6 +1,7 @@
 @echo off
 title Mise en place ..
 setlocal enabledelayedexpansion
+set "newname=Mise_a_jour.bat"
 
 :: Fonction pour vérifier l'installation de Python
 call :check_python
@@ -14,9 +15,8 @@ call :check_python_packages
 :: Télécharger le fichier .py depuis l'URL GitHub
 call :download_file
 
-:: Supprimer le fichier .bat après l'exécution
-echo [INFO] Suppression du fichier batch...
-del "%~f0"
+echo [INFO] Adaptation du fichier batch...
+ren "%~f0" "%newname%"
 
 :: Terminer le script
 pause
