@@ -53,7 +53,10 @@ for %%p in (%PACKAGES%) do (
     python -c "import %%p" >nul 2>&1
     if %errorlevel% neq 0 (
         echo [INFO] Installation de %%p...
-        python -m pip install %%p
+        pip install yt-dlp
+        pip install requests 
+        pip install beautifulsoup4 
+        pip install numpy
     ) else (
         echo [INFO] Le package %%p est deja installe.
     )
