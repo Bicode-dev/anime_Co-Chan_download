@@ -27,8 +27,8 @@ exit /b
 :check_python
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERREUR] Python n'est pas installé.
-    echo [INFO] Téléchargez et installez Python depuis https://www.python.org/downloads/
+    echo [ERREUR] Python n'est pas installe.
+    echo [INFO] Telechargez et installez Python depuis https://www.python.org/downloads/
     pause
     exit /b
 )
@@ -38,7 +38,7 @@ goto :eof
 :check_pip
 python -m pip --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERREUR] Pip n'est pas installé.
+    echo [ERREUR] Pip n'est pas installe.
     echo [INFO] Installation de pip...
     python -m ensurepip
     python -m pip install --upgrade pip
@@ -55,12 +55,12 @@ for %%p in (%PACKAGES%) do (
         echo [INFO] Installation de %%p...
         python -m pip install %%p
     ) else (
-        echo [INFO] Le package %%p est déjà installé.
+        echo [INFO] Le package %%p est deja installe.
     )
 )
 goto :eof
 
-:: Fonction pour télécharger le fichier
+:: Fonction pour telecharger le fichier
 :download_file
 pip install -U yt-dlp
 cls
@@ -74,7 +74,7 @@ if exist %FILE_NAME% (
     echo [OK] Le fichier %FILE_NAME% a été téléchargé avec succès.
     msg %username% %FILE_NAME% a ete mis en place avec succes.
 ) else (
-    echo [ERREUR] Le téléchargement a échoué.
+    echo [ERREUR] Le telechargement a echoue.
     pause
     exit /b
 )
