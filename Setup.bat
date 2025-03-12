@@ -3,16 +3,16 @@ title Mise en place ..
 setlocal enabledelayedexpansion
 set "newname=Mise_a_jour.bat"
 
-:: Fonction pour vérifier l'installation de Python
+:: Verifier l'installation de Python
 call :check_python
 
-:: Vérifier si pip est installé
+:: Verifier si pip est installe
 call :check_pip
 
-:: Vérifier si yt-dlp et autres modules sont installés
+:: Verifier si yt-dlp et autres modules sont installes
 call :check_python_packages
 
-:: Télécharger le fichier .py depuis l'URL GitHub
+:: Telecharger le fichier .py depuis l'URL GitHub
 call :download_file
 
 echo [INFO] Adaptation du fichier batch...
@@ -23,7 +23,7 @@ pause
 exit /b
 
 :: ----------------------------------------
-:: Fonction pour vérifier l'installation de Python
+:: Fonction pour verifier l'installation de Python
 :check_python
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
@@ -34,7 +34,7 @@ if %errorlevel% neq 0 (
 )
 goto :eof
 
-:: Fonction pour vérifier si pip est installé
+:: Fonction pour verifier si pip est installe
 :check_pip
 python -m pip --version >nul 2>&1
 if %errorlevel% neq 0 (
@@ -45,7 +45,7 @@ if %errorlevel% neq 0 (
 )
 goto :eof
 
-:: Fonction pour vérifier si les packages Python sont installés
+:: Fonction pour verifier et installer les packages Python (NON MODIFIeE)
 :check_python_packages
 set PACKAGES=yt-dlp requests beautifulsoup4 numpy tkinter
 
@@ -64,22 +64,43 @@ for %%p in (%PACKAGES%) do (
 )
 goto :eof
 
-:: Fonction pour telecharger le fichier
+:: Fonction pour telecharger les fichiers depuis GitHub
 :download_file
 pip install -U yt-dlp
 cls
-echo [INFO] Téléchargement du fichier .py depuis l'URL GitHub...
-set URL=https://raw.githubusercontent.com/les-developpeur/anime-soma/refs/heads/main/Anime-dowload.py
-set FILE_NAME=anime-dowload.py
-curl -o %FILE_NAME% %URL%
-curl -o gui_windows-30%-moin-rapide-mais-plus-beau.pyw https://raw.githubusercontent.com/les-developpeur/anime-soma/refs/heads/main/gui_windows.pyw
-:: Vérifier si le fichier a bien été téléchargé
-if exist %FILE_NAME% (
-    echo [OK] Le fichier %FILE_NAME% a été téléchargé avec succès.
-    msg %username% %FILE_NAME% a ete mis en place avec succes.
+echo [INFO] Telechargement des fichiers depuis GitHub...
+
+:: Definition des URLs
+set URL_SCRIPT=https://raw.githubusercontent.com/les-developpeur/anime-soma/main/Anime-dowload.py
+set FILE_SCRIPT=anime-dowload.py
+set URL_GUI=https://raw.githubusercontent.com/les-developpeur/anime-soma/main/gui_windows.pyw
+set FILE_GUI=gui_windows-30%%-moin-rapide-mais-plus-beau.pyw
+
+:: Telecharger les fichiers
+curl -o %FILE_SCRIPT% %URL_SCRIPT%
+curl -o %FILE_GUI% %URL_GUI%
+
+:: Attendre un instant pour s'assurer du telechargement
+timeout /t 2 /nobreak >nul
+
+:: Verifier si les fichiers ont bien ete telecharges
+if exist %FILE_SCRIPT% (
+    echo [OK] Le fichier %FILE_SCRIPT% a ete telecharge avec succes.
 ) else (
-    echo [ERREUR] Le telechargement a echoue.
+    echo [ERREUR] echec du telechargement de %FILE_SCRIPT%.
     pause
     exit /b
 )
+
+if exist %FILE_GUI% (
+    echo [OK] Le fichier %FILE_GUI% a ete telecharge avec succes.
+) else (
+    echo [ERREUR] echec du telechargement de %FILE_GUI%.
+    pause
+    exit /b
+)
+
+:: Notification a l'utilisateur
+msg %username% "Les fichiers ont ete telecharges avec succes."
+
 goto :eof
