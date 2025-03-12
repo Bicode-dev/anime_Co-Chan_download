@@ -37,6 +37,7 @@ class AnimeDownloaderGUI:
         self.download_path = os.getcwd()
         self.running = False
         self.download_thread = None
+        self.last_log_message = None  # Ajout d'un attribut pour le dernier message de log
 
         # Style
         self.style = ttk.Style()
@@ -95,6 +96,10 @@ class AnimeDownloaderGUI:
         self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var, mode='indeterminate')
         self.progress_bar.pack(fill=tk.X, padx=5, pady=5)
 
+        # Label for progress message
+        self.progress_label = ttk.Label(progress_frame, text="", background="#f0f0f0")
+        self.progress_label.pack(pady=5)
+
         # Season selection
         self.season_frame = ttk.LabelFrame(main_frame, text="Saisons disponibles", padding="5")
         self.season_frame.pack(fill=tk.X, pady=5)
@@ -127,9 +132,19 @@ class AnimeDownloaderGUI:
 
     def log(self, message):
         self.console.config(state=tk.NORMAL)
+        
+        # Si un message précédent existe, le remplacer
+        if self.last_log_message is not None:
+            # Supprimer la dernière ligne
+            self.console.delete('end-1c linestart', 'end-1c lineend')
+        
+        # Insérer le nouveau message
         self.console.insert(tk.END, message + "\n")
         self.console.see(tk.END)
         self.console.config(state=tk.DISABLED)
+        
+        # Mettre à jour le dernier message
+        self.last_log_message = message
         self.root.update_idletasks()
 
     def update_status(self, message):
@@ -292,8 +307,10 @@ class AnimeDownloaderGUI:
         if d["status"] == "downloading":
             percent = d["_percent_str"].strip()
             self.update_status(f"🔄 [S{season} E{episode}/{max_episode}] {percent} complet")
+            self.progress_label.config(text=f"🔄 [S{season} E{episode}/{max_episode}] {percent} complet")  # Mettre à jour le label
         elif d["status"] == "finished":
             self.log(f"✅ [S{season} E{episode}/{max_episode}] Téléchargement terminé !")
+            self.progress_label.config(text="")  # Effacer le message de progression
 
     def download_video(self, link, filename, season, episode, max_episode):
         """Télécharge une vidéo en affichant la progression"""
@@ -377,7 +394,12 @@ class AnimeDownloaderGUI:
         if not anime_name:
             messagebox.showerror("Erreur", "Veuillez entrer un nom d'anime")
             return
-            
+
+        # Effacer la console avant de commencer la recherche
+        self.console.config(state=tk.NORMAL)
+        self.console.delete(1.0, tk.END)  # Effacer tout le contenu de la console
+        self.console.config(state=tk.DISABLED)
+
         self.progress_bar.start()
         self.search_button.config(state=tk.DISABLED)
         self.update_status("Recherche en cours...")
@@ -598,7 +620,6 @@ class AnimeDownloaderGUI:
             self.running = False
             self.update_status("Annulation du téléchargement...")
             self.log("⚠️ Demande d'annulation... Le téléchargement va s'arrêter après l'épisode en cours.")
-            self.cancel_button.config(state=tk.DISABLED)
 
 def main():
     root = tk.Tk()
