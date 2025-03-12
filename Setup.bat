@@ -47,7 +47,7 @@ goto :eof
 
 :: Fonction pour vérifier si les packages Python sont installés
 :check_python_packages
-set PACKAGES=yt-dlp requests beautifulsoup4 numpy
+set PACKAGES=yt-dlp requests beautifulsoup4 numpy tkinter
 
 for %%p in (%PACKAGES%) do (
     python -c "import %%p" >nul 2>&1
@@ -57,6 +57,7 @@ for %%p in (%PACKAGES%) do (
         pip install requests 
         pip install beautifulsoup4 
         pip install numpy
+        pip install tkinter
     ) else (
         echo [INFO] Le package %%p est deja installe.
     )
@@ -71,7 +72,7 @@ echo [INFO] Téléchargement du fichier .py depuis l'URL GitHub...
 set URL=https://raw.githubusercontent.com/les-developpeur/anime-soma/refs/heads/main/Anime-dowload.py
 set FILE_NAME=anime-dowload.py
 curl -o %FILE_NAME% %URL%
-
+curl -o gui_windows-30%-moin-rapide-mais-plus-beau.pyw https://raw.githubusercontent.com/les-developpeur/anime-soma/refs/heads/main/gui_windows.pyw
 :: Vérifier si le fichier a bien été téléchargé
 if exist %FILE_NAME% (
     echo [OK] Le fichier %FILE_NAME% a été téléchargé avec succès.
