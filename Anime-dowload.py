@@ -17,7 +17,7 @@ class MyLogger(object):
     def error(self, msg):
         # On affiche directement l'erreur ici, mais l'écrasement sera fait ailleurs
         print(msg)
-
+os.system("title Anime-Chan")
 def check_disk_space(min_gb=1):
     """ Vérifie si l'espace disque disponible est supérieur à 1 Go """
     system = platform.system()
