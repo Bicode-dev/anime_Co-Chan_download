@@ -103,7 +103,7 @@ def check_seasons(base_url, name, language):
         response = requests.get(main_url)
         
         if response.status_code == 200 and response.text.strip():
-            print(f"\u2714 Saison {season} trouvée: {main_url}")
+            print(f"\u2714 Saison {season} trouvée")
             
             # Initialiser les infos de cette saison
             season_info[season] = {
