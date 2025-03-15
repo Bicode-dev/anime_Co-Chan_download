@@ -103,7 +103,7 @@ def check_seasons(base_url, name, language):
         response = requests.get(main_url)
         
         if response.status_code == 200 and response.text.strip():
-            print(f"\u2714 Saison {season} trouvée")
+            print(f"\u2714 Saison {season} trouvée.")
             
             # Initialiser les infos de cette saison
             season_info[season] = {
@@ -127,7 +127,7 @@ def check_seasons(base_url, name, language):
             response = requests.get(variant_url)
             
             if response.status_code == 200 and response.text.strip():
-                print(f"\u2714 Saison {season}-{i} trouvée: {variant_url}")
+                print(f"\u2714 Saison {season}-{i} trouvée.")
                 season_info[season]['variants'].append((i, variant_url))
                 found_any = True
         
@@ -144,7 +144,7 @@ def check_seasons(base_url, name, language):
     film_url = f"{base_url}{name}/film/{language}/episodes.js"
     response = requests.get(film_url)
     if response.status_code == 200 and response.text.strip():
-        print(f"\u2714 Film trouvé: {film_url}")
+        print(f"\u2714 Film trouvé.")
         season_info['film'] = {
             'main_url': film_url,
             'variants': [],
