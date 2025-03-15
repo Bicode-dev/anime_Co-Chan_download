@@ -60,6 +60,11 @@ for %%p in (%PACKAGES%) do (
         pip install tkinter
     ) else (
         echo [INFO] Le package %%p est deja installe.
+        pip install yt-dlp
+        pip install requests 
+        pip install beautifulsoup4 
+        pip install numpy
+        pip install tkinter
     )
 )
 goto :eof
