@@ -155,7 +155,7 @@ def check_seasons(base_url, name, language):
     oav_url = f"{base_url}{name}/oav/{language}/episodes.js"
     response = requests.get(oav_url)
     if response.status_code == 200 and response.text.strip():
-        print(f"\u2714 OAV trouvé: {oav_url}")
+        print(f"\u2714 OAV trouvé.")
         season_info['oav'] = {
             'main_url': oav_url,
             'variants': [],
