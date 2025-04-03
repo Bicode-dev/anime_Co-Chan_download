@@ -15,7 +15,6 @@ class MyLogger(object):
         pass
 
     def error(self, msg):
-        # On affiche directement l'erreur ici, mais l'écrasement sera fait ailleurs
         print(msg)
 os.system("title Anime-Chan")
 def check_disk_space(min_gb=1):
@@ -177,7 +176,7 @@ def check_seasons(base_url, name, language):
 def check_http_403(url):
     """Vérifie si l'URL retourne un code HTTP 403 avec 5 tentatives"""
     attempts = 0
-    while attempts < 5:
+    while attempts < 3:
         try:
             response = requests.get(url, timeout=10)
             if response.status_code == 403:
@@ -190,7 +189,7 @@ def check_http_403(url):
             print(f"⛔ Erreur de connexion : {e}")
             return False
 
-    # Après 5 tentatives infructueuses, afficher un message de bannissement
+    # Après 3 tentatives infructueuses, afficher un message de bannissement
     print("⛔ Sibnet vous a temporairement banni, veuillez réessayer dans un maximum de 2 jours.")
     time.sleep(20)  # Pause de 20 secondes pour permettre à l'utilisateur de voir le message
     return True
@@ -233,8 +232,7 @@ def download_video(link, filename, season, episode, max_episode):
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([link])
     except Exception as e:
-        # Efface la ligne d'erreur précédente et affiche l'erreur
-        sys.stdout.write("\r")  # Efface la ligne de l'erreur précédente
+        sys.stdout.write("\r")
         sys.stdout.flush()
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
@@ -245,7 +243,7 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
     os.makedirs(download_dir, exist_ok=True)
 
     total_episodes = len(sibnet_links) + len(vidmoly_links)
-    max_episode = current_episode + total_episodes - 1  # Calculer le dernier épisode
+    max_episode = current_episode + total_episodes - 1
     episode_counter = current_episode
 
     print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {episode_counter} jusqu'à {max_episode})")
@@ -269,7 +267,6 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
         sys.stdout.write("\r")  # Efface la ligne de chargement
         sys.stdout.flush()
 
-        # Vérifie si le lien mène à un code HTTP 403 avant de commencer le téléchargement
         if check_http_403(link):
             continue  # Si le code 403 est détecté, on passe à l'épisode suivant
 
@@ -290,19 +287,15 @@ def show_usage():
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
     
-    # Vérifier si des arguments en ligne de commande ont été fournis
     if len(sys.argv) > 1:
-        # Si "-h" ou "--help" est fourni, afficher l'aide
         if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "-?"]:
             show_usage()
             return
             
-        # Si exactement 2 arguments sont fournis (nom_anime et langage)
         if len(sys.argv) == 3:
             anime_name = sys.argv[1].strip().lower()
             language_input = sys.argv[2].strip().lower()
             
-            # Convertir l'entrée en langage en choix correspondant
             if language_input == "vf":
                 language_choice = "1"
             elif language_input == "vostfr":
@@ -316,7 +309,6 @@ def main():
             show_usage()
             return
     else:
-        # Mode interactif si aucun argument n'est fourni
         anime_name = input("Entrez le nom de l'anime : ").strip().lower()
         language_choice = input("Choisissez la version (1: VF, 2: VOSTFR) : ").strip()
     
@@ -359,7 +351,6 @@ def main():
 
     seasons = check_seasons(base_url, formatted_url_name, selected_language)
     
-    # Dictionnaire pour suivre le nombre d'épisodes par saison et variante
     episode_counters = {}
     last_processed = {}  # Pour suivre la dernière saison/variante traitée
     
@@ -378,19 +369,14 @@ def main():
             print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
             continue
             
-        # Déterminer le numéro de l'épisode de départ
         start_episode = 1  # Par défaut, commencer à 1
         
-        # Si c'est une variante, vérifier si on a déjà traité la saison principale ou d'autres variantes
         if is_variant:
             if season in last_processed:
-                # Continuer depuis le dernier épisode de cette saison
                 start_episode = last_processed[season] + 1
             else:
-                # Si c'est la première variante mais pas de saison principale, commencer à 1
                 start_episode = 1
         else:
-            # Si c'est une saison principale, toujours commencer à 1
             start_episode = 1
         
         print(f"♾️ Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
