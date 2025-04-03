@@ -222,7 +222,7 @@ def download_video(link, filename, season, episode, max_episode):
         "ignoreerrors": True,
         "progress_hooks": [lambda d: progress_hook(d, season, episode, max_episode)],
         "no_warnings": True,
-        "format": "bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
         "merge_output_format": "mp4",
         "logger": MyLogger(),
         "socket_timeout": 60,  # Augmenter le délai d'attente avant un timeout (en secondes)
