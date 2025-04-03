@@ -278,11 +278,47 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
         
         download_video(link, filename, season, episode_counter, max_episode)
         episode_counter += 1
+def show_usage():
+    """Affiche l'aide d'utilisation du script"""
+    print("Usage: python Code.py [nom_anime] [langage]")
+    print("Exemples:")
+    print("  python Code.py \"one piece\" vf     # Télécharge One Piece en VF")
+    print("  python Code.py naruto vostfr      # Télécharge Naruto en VOSTFR")
+    print("\nOu lancez le script sans arguments pour le mode interactif.")
+
 
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
-    anime_name = input("Entrez le nom de l'anime : ").strip().lower()
-    language_choice = input("Choisissez la version (1: VF, 2: VOSTFR) : ").strip()
+    
+    # Vérifier si des arguments en ligne de commande ont été fournis
+    if len(sys.argv) > 1:
+        # Si "-h" ou "--help" est fourni, afficher l'aide
+        if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "-?"]:
+            show_usage()
+            return
+            
+        # Si exactement 2 arguments sont fournis (nom_anime et langage)
+        if len(sys.argv) == 3:
+            anime_name = sys.argv[1].strip().lower()
+            language_input = sys.argv[2].strip().lower()
+            
+            # Convertir l'entrée en langage en choix correspondant
+            if language_input == "vf":
+                language_choice = "1"
+            elif language_input == "vostfr":
+                language_choice = "2"
+            else:
+                print(f"⛔ Langage '{language_input}' non reconnu. Utilisez 'vf' ou 'vostfr'.")
+                show_usage()
+                return
+        else:
+            print("⛔ Nombre d'arguments incorrect.")
+            show_usage()
+            return
+    else:
+        # Mode interactif si aucun argument n'est fourni
+        anime_name = input("Entrez le nom de l'anime : ").strip().lower()
+        language_choice = input("Choisissez la version (1: VF, 2: VOSTFR) : ").strip()
     
     formatted_url_name = format_url_name(anime_name)
 
@@ -300,7 +336,13 @@ def main():
             for i, lang in enumerate(available_vf_versions, start=1):
                 print(f"{i}. {lang.upper()}")
 
-            choice = input("Entrez le numéro de la version souhaitée : ").strip()
+            # En mode ligne de commande, choisir automatiquement la première version VF disponible
+            if len(sys.argv) > 1:
+                choice = "1"
+                print(f"Mode ligne de commande : Sélection automatique de la version {available_vf_versions[0].upper()}")
+            else:
+                choice = input("Entrez le numéro de la version souhaitée : ").strip()
+                
             if not choice.isdigit() or int(choice) < 1 or int(choice) > len(available_vf_versions):
                 print("⛔ Choix invalide. Arrêt du programme.")
                 return
