@@ -15,6 +15,7 @@ class MyLogger(object):
         pass
 
     def error(self, msg):
+        # On affiche directement l'erreur ici, mais l'écrasement sera fait ailleurs
         print(msg)
 os.system("title Anime-Chan")
 def check_disk_space(min_gb=1):
@@ -176,7 +177,7 @@ def check_seasons(base_url, name, language):
 def check_http_403(url):
     """Vérifie si l'URL retourne un code HTTP 403 avec 5 tentatives"""
     attempts = 0
-    while attempts < 3:
+    while attempts < 5:
         try:
             response = requests.get(url, timeout=10)
             if response.status_code == 403:
@@ -189,7 +190,7 @@ def check_http_403(url):
             print(f"⛔ Erreur de connexion : {e}")
             return False
 
-    # Après 3 tentatives infructueuses, afficher un message de bannissement
+    # Après 5 tentatives infructueuses, afficher un message de bannissement
     print("⛔ Sibnet vous a temporairement banni, veuillez réessayer dans un maximum de 2 jours.")
     time.sleep(20)  # Pause de 20 secondes pour permettre à l'utilisateur de voir le message
     return True
@@ -232,7 +233,8 @@ def download_video(link, filename, season, episode, max_episode):
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([link])
     except Exception as e:
-        sys.stdout.write("\r")
+        # Efface la ligne d'erreur précédente et affiche l'erreur
+        sys.stdout.write("\r")  # Efface la ligne de l'erreur précédente
         sys.stdout.flush()
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
@@ -243,7 +245,7 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
     os.makedirs(download_dir, exist_ok=True)
 
     total_episodes = len(sibnet_links) + len(vidmoly_links)
-    max_episode = current_episode + total_episodes - 1
+    max_episode = current_episode + total_episodes - 1  # Calculer le dernier épisode
     episode_counter = current_episode
 
     print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {episode_counter} jusqu'à {max_episode})")
@@ -267,6 +269,7 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
         sys.stdout.write("\r")  # Efface la ligne de chargement
         sys.stdout.flush()
 
+        # Vérifie si le lien mène à un code HTTP 403 avant de commencer le téléchargement
         if check_http_403(link):
             continue  # Si le code 403 est détecté, on passe à l'épisode suivant
 
