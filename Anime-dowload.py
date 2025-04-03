@@ -309,38 +309,29 @@ def main():
             show_usage()
             return
     else:
-        anime_name = input("Entrez le nom de l'anime : ").strip().lower()
-        language_choice = input("Choisissez la version (1: VF, 2: VOSTFR) : ").strip()
+        def main():
+    base_url = "https://anime-sama.fr/catalogue/"
     
+    # Demander le nom de l'anime
+    anime_name = input("Entrez le nom de l'anime : ").strip().lower()
     formatted_url_name = format_url_name(anime_name)
 
-    if language_choice == "1":
-        available_vf_versions = check_available_languages(base_url, formatted_url_name)
-        
-        if not available_vf_versions:
-            print("⛔ Aucune version VF trouvée. Arrêt du programme.")
-            return
-        
-        if len(available_vf_versions) == 1:
-            selected_language = available_vf_versions[0]
-        else:
-            print("\nVersions VF disponibles :")
-            for i, lang in enumerate(available_vf_versions, start=1):
-                print(f"{i}. {lang.upper()}")
+    available_vf_versions = check_available_languages(base_url, formatted_url_name)
+    
+    if available_vf_versions:
+        print("\nVersions VF disponibles :")
+        for i, lang in enumerate(available_vf_versions, start=1):
+            print(f"{i}. {lang.upper()}")
 
-            # En mode ligne de commande, choisir automatiquement la première version VF disponible
-            if len(sys.argv) > 1:
-                choice = "1"
-                print(f"Mode ligne de commande : Sélection automatique de la version {available_vf_versions[0].upper()}")
-            else:
-                choice = input("Entrez le numéro de la version souhaitée : ").strip()
-                
-            if not choice.isdigit() or int(choice) < 1 or int(choice) > len(available_vf_versions):
-                print("⛔ Choix invalide. Arrêt du programme.")
-                return
-            
+        print(f"{len(available_vf_versions) + 1}. VOSTFR")
+        
+        choice = input("Choisissez la version : ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(available_vf_versions):
             selected_language = available_vf_versions[int(choice) - 1]
+        else:
+            selected_language = "vostfr"
     else:
+        print("⛔ Aucune version VF trouvée, VOSTFR sélectionné automatiquement.")
         selected_language = "vostfr"
 
     folder_name = format_folder_name(anime_name, selected_language)
