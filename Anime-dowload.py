@@ -287,15 +287,19 @@ def show_usage():
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
     
+    # Vérifier si des arguments en ligne de commande ont été fournis
     if len(sys.argv) > 1:
+        # Si "-h" ou "--help" est fourni, afficher l'aide
         if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "-?"]:
             show_usage()
             return
             
+        # Si exactement 2 arguments sont fournis (nom_anime et langage)
         if len(sys.argv) == 3:
             anime_name = sys.argv[1].strip().lower()
             language_input = sys.argv[2].strip().lower()
             
+            # Convertir l'entrée en langage en choix correspondant
             if language_input == "vf":
                 language_choice = "1"
             elif language_input == "vostfr":
@@ -309,12 +313,11 @@ def main():
             show_usage()
             return
     else:
-        def main():
-    
-    # Demander le nom de l'anime
-    anime_name = input("Entrez le nom de l'anime : ").strip().lower()
+        # Mode interactif si aucun argument n'est fourni
+        anime_name = input("Entrez le nom de l'anime : ").strip().lower()
     formatted_url_name = format_url_name(anime_name)
 
+    # Vérifier les versions VF disponibles avant de proposer le choix de langue
     available_vf_versions = check_available_languages(base_url, formatted_url_name)
     
     if available_vf_versions:
@@ -324,6 +327,7 @@ def main():
 
         print(f"{len(available_vf_versions) + 1}. VOSTFR")
         
+        # Sélection de la langue
         choice = input("Choisissez la version : ").strip()
         if choice.isdigit() and 1 <= int(choice) <= len(available_vf_versions):
             selected_language = available_vf_versions[int(choice) - 1]
@@ -341,6 +345,7 @@ def main():
 
     seasons = check_seasons(base_url, formatted_url_name, selected_language)
     
+    # Dictionnaire pour suivre le nombre d'épisodes par saison et variante
     episode_counters = {}
     last_processed = {}  # Pour suivre la dernière saison/variante traitée
     
@@ -359,14 +364,19 @@ def main():
             print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
             continue
             
+        # Déterminer le numéro de l'épisode de départ
         start_episode = 1  # Par défaut, commencer à 1
         
+        # Si c'est une variante, vérifier si on a déjà traité la saison principale ou d'autres variantes
         if is_variant:
             if season in last_processed:
+                # Continuer depuis le dernier épisode de cette saison
                 start_episode = last_processed[season] + 1
             else:
+                # Si c'est la première variante mais pas de saison principale, commencer à 1
                 start_episode = 1
         else:
+            # Si c'est une saison principale, toujours commencer à 1
             start_episode = 1
         
         print(f"♾️ Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
@@ -379,3 +389,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
