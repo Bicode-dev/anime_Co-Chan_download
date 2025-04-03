@@ -12,3 +12,11 @@ Français/French only
 💻windows🖥️ :
 
 juste open `Setup.bat`
+
+`Voici un exemple d'utilisation du script en ligne de commande (non obligatoir on peut aussi juste l'ouvrir) :
+Pour télécharger "One Piece" en VF :
+Copierpython Anime-dowload.py "one piece" vf
+Pour télécharger "Naruto" en VOSTFR :
+Copierpython Anime-dowload.py naruto vostfr
+Pour afficher l'aide :
+Copierpython Anime-dowload.py --help` en ligne de commande ou simplement ouvrir le .py
