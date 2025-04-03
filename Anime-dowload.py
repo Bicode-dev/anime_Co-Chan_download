@@ -82,13 +82,19 @@ def check_available_languages(base_url, name):
     available_languages = []
 
     for lang in vf_versions:
-        test_url = f"{base_url}{name}/saison1/{lang}/episodes.js"
-        response = requests.get(test_url)
-        if response.status_code == 200 and response.text.strip():
+
+        season_url = f"{base_url}{name}/saison1/{lang}/episodes.js"
+        season_response = requests.get(season_url)
+        
+
+        film_url = f"{base_url}{name}/film/{lang}/episodes.js"
+        film_response = requests.get(film_url)
+        
+        if (season_response.status_code == 200 and season_response.text.strip()) or \
+           (film_response.status_code == 200 and film_response.text.strip()):
             available_languages.append(lang)
 
     return available_languages
-
 def check_seasons(base_url, name, language):
     """Vérifie les saisons, films et OAVs disponibles avec des variantes de numérotation"""
     available_seasons = []
