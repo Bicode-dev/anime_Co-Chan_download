@@ -92,20 +92,18 @@ def check_available_languages(base_url, name):
 def check_seasons(base_url, name, language):
     """Vérifie les saisons, films et OAVs disponibles avec des variantes de numérotation"""
     available_seasons = []
-    season_info = {}  # Pour stocker les informations sur chaque saison et ses variantes
+    season_info = {}
     
     season = 1
     while True:
         found_any = False
         
-        # Vérifier l'URL standard pour cette saison
         main_url = f"{base_url}{name}/saison{season}/{language}/episodes.js"
         response = requests.get(main_url)
         
         if response.status_code == 200 and response.text.strip():
             print(f"\u2714 Saison {season} trouvée.")
             
-            # Initialiser les infos de cette saison
             season_info[season] = {
                 'main_url': main_url,
                 'variants': [],
