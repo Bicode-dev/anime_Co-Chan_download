@@ -310,7 +310,6 @@ def main():
             return
     else:
         def main():
-    base_url = "https://anime-sama.fr/catalogue/"
     
     # Demander le nom de l'anime
     anime_name = input("Entrez le nom de l'anime : ").strip().lower()
