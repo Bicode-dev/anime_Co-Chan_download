@@ -17,7 +17,21 @@ class MyLogger(object):
     def error(self, msg):
         # On affiche directement l'erreur ici, mais l'écrasement sera fait ailleurs
         print(msg)
-os.system("title Co-Chan")
+def set_title(title_text):
+    """Set console title if on Windows or regular Linux, but not on Termux"""
+    system = platform.system()
+    
+    # Check if running on Termux (Android)
+    is_termux = system == "Linux" and "ANDROID_STORAGE" in os.environ
+    
+    if system == "Windows":
+        os.system(f"title {title_text}")
+    elif system == "Linux" and not is_termux:
+        # For regular Linux terminals that support title setting
+        os.system(f'echo -e "\033]0;{title_text}\007"')
+    # Skip title setting on Termux as it's not supported
+
+set_title("Co-Chan")
 def check_disk_space(min_gb=1):
     """ Vérifie si l'espace disque disponible est supérieur à 1 Go """
     system = platform.system()
@@ -322,6 +336,8 @@ def main():
     else:
         # Mode interactif si aucun argument n'est fourni
         anime_name = input("Entrez le nom de l'anime : ").strip().lower()
+        anime_name_capitalized = anime_name.capitalize()
+        set_title(f"Co-Chan : {anime_name_capitalized}")
     formatted_url_name = format_url_name(anime_name)
 
     # Vérifier les versions VF disponibles avant de proposer le choix de langue
