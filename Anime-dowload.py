@@ -344,7 +344,7 @@ def main():
     available_vf_versions = check_available_languages(base_url, formatted_url_name)
     
     if available_vf_versions:
-        print("\nVersions VF disponibles :")
+        print("\nVersions disponibles :")
         for i, lang in enumerate(available_vf_versions, start=1):
             print(f"{i}. {lang.upper()}")
 
