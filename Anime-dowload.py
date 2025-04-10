@@ -355,7 +355,7 @@ def main():
         print("⛔ Aucune version VF trouvée, VOSTFR sélectionné automatiquement.")
         selected_language = "vostfr"
 
-    folder_name = format_folder_name(anime_name, selected_language).capitalize()
+    folder_name = format_folder_name(anime_name_capitalized, selected_language)
 
     if not check_disk_space():
         print("⛔ Espace disque insuffisant. Libérez de l'espace et réessayez.")
