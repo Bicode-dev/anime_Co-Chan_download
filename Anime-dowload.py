@@ -15,38 +15,21 @@ class MyLogger(object):
         pass
 
     def error(self, msg):
+        # On affiche directement l'erreur ici, mais l'écrasement sera fait ailleurs
         print(msg)
 def set_title(title_text):
     """Set console title if on Windows or regular Linux, but not on Termux"""
     system = platform.system()
     
+    # Check if running on Termux (Android)
     is_termux = system == "Linux" and "ANDROID_STORAGE" in os.environ
     
     if system == "Windows":
         os.system(f"title {title_text}")
     elif system == "Linux" and not is_termux:
+        # For regular Linux terminals that support title setting
         os.system(f'echo -e "\033]0;{title_text}\007"')
-    
-def display_available_languages(available_languages):
-    """Affiche les langues disponibles avec emoji de drapeau"""
-    lang_display = {
-    "vostfr": "🇯🇵 [JP] VOSTFR (Sous-titré français)", 
-    "vf": "🇫🇷 [FR] VF (Version française)",
-    "va": "🇬🇧 [EN] VA (Version anglaise)",
-    "vkr": "🇰🇷 [KR] VKR (Version coréenne)",
-    "vcn": "🇨🇳 [CN] VCN (Version chinoise)",
-    "vqc": "🇨🇦 [QC] VQC (Version québécoise)",
-    "vf1": "🇫🇷 [FR] VF1 (Version française alternative 1)",
-    "vf2": "🇫🇷 [FR] VF2 (Version française alternative 2)",
-    "vf3": "🇫🇷 [FR] VF3 (Version française alternative 3)",
-    "vf4": "🇫🇷 [FR] VF4 (Version française alternative 4)",
-    "vf5": "🇫🇷 [FR] VF5 (Version française alternative 5)"
-}
-    
-    print("\nVersions disponibles :")
-    for i, lang in enumerate(available_languages, start=1):
-        print(f"{i}. {lang_display.get(lang, lang.upper())}")
- 
+    # Skip title setting on Termux as it's not supported
 
 set_title("Co-Chan")
 def check_disk_space(min_gb=1):
@@ -126,6 +109,7 @@ def check_available_languages(base_url, name):
             available_languages.append(lang)
 
     return available_languages
+
 def check_seasons(base_url, name, language):
     """Vérifie les saisons, films et OAVs disponibles avec des variantes de numérotation"""
     available_seasons = []
@@ -149,12 +133,14 @@ def check_seasons(base_url, name, language):
             
             found_any = True
         else:
+            # Si pas de saison principale, vérifier si on a des variantes
             season_info[season] = {
                 'main_url': None,
                 'variants': [],
                 'has_main': False
             }
         
+        # Vérifier toutes les variantes pour cette saison
         for i in range(1, 11):
             variant_url = f"{base_url}{name}/saison{season}-{i}/{language}/episodes.js"
             response = requests.get(variant_url)
@@ -165,12 +151,15 @@ def check_seasons(base_url, name, language):
                 found_any = True
         
         if not found_any:
+            # Si aucune URL principale ou variante n'a été trouvée pour cette saison,
+            # on la supprime du dictionnaire et on arrête la boucle
             if season in season_info:
                 del season_info[season]
             break
         
         season += 1
 
+    # Vérification des films
     film_url = f"{base_url}{name}/film/{language}/episodes.js"
     response = requests.get(film_url)
     if response.status_code == 200 and response.text.strip():
@@ -181,6 +170,7 @@ def check_seasons(base_url, name, language):
             'has_main': True
         }
     
+    # Vérification des OAVs
     oav_url = f"{base_url}{name}/oav/{language}/episodes.js"
     response = requests.get(oav_url)
     if response.status_code == 200 and response.text.strip():
@@ -219,6 +209,7 @@ def check_http_403(url):
             print(f"⛔ Erreur de connexion : {e}")
             return False
 
+    # Après 5 tentatives infructueuses, afficher un message de bannissement
     print("⛔ Sibnet vous a temporairement banni, veuillez réessayer dans un maximum de 2 jours.")
     time.sleep(20)  # Pause de 20 secondes pour permettre à l'utilisateur de voir le message
     return True
@@ -278,25 +269,30 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
 
     print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {episode_counter} jusqu'à {max_episode})")
 
+    # Vérification que les liens sont bien définis
     if not (sibnet_links or vidmoly_links):
         print(f"⛔ Aucune vidéo trouvée pour la saison {season}.")
         return  # Si aucun lien n'a été trouvé, on quitte la fonction.
 
     for link in sibnet_links + vidmoly_links:
+        # Afficher le message de chargement animé avec des points entre chaque épisode
         sys.stdout.write("🌐 Chargement")
         sys.stdout.flush()
 
+        # Afficher des points pour l'animation pendant 2 secondes
         for _ in range(3):
-            time.sleep(0.5)
+            time.sleep(1)
             sys.stdout.write(".")
             sys.stdout.flush()
 
         sys.stdout.write("\r")  # Efface la ligne de chargement
         sys.stdout.flush()
 
+        # Vérifie si le lien mène à un code HTTP 403 avant de commencer le téléchargement
         if check_http_403(link):
             continue  # Si le code 403 est détecté, on passe à l'épisode suivant
 
+        # Format standard S{season}_E{episode_counter}
         filename = os.path.join(download_dir, f"s{season}_e{episode_counter}.mp4")
         
         download_video(link, filename, season, episode_counter, max_episode)
@@ -313,167 +309,107 @@ def show_usage():
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
     
+    # Vérifier si des arguments en ligne de commande ont été fournis
     if len(sys.argv) > 1:
         # Si "-h" ou "--help" est fourni, afficher l'aide
-        if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "?"]:
+        if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "-?"]:
             show_usage()
             return
             
+        # Si exactement 2 arguments sont fournis (nom_anime et langage)
         if len(sys.argv) == 3:
             anime_name = sys.argv[1].strip().lower()
             language_input = sys.argv[2].strip().lower()
-            set_title(f"Co-Chan : {anime_name_capitalized}")
             
-            valid_languages = ["vf", "vostfr", "va", "vkr", "vcn", "vqc", "vf1", "vf2", "vf3", "vf4", "vf5"]
-            
-            if language_input not in valid_languages:
-                print(f"⛔ Langage '{language_input}' non reconnu.")
-                print(f"Langages disponibles: {', '.join(valid_languages)}")
+            # Convertir l'entrée en langage en choix correspondant
+            if language_input == "vf":
+                language_choice = "1"
+            elif language_input == "vostfr":
+                language_choice = "2"
+            else:
+                print(f"⛔ Langage '{language_input}' non reconnu. Utilisez 'vf' ou 'vostfr'.")
                 show_usage()
                 return
-                
-            selected_languages = [language_input]
         else:
             print("⛔ Nombre d'arguments incorrect.")
             show_usage()
             return
     else:
+        # Mode interactif si aucun argument n'est fourni
         anime_name = input("Entrez le nom de l'anime : ").strip().lower()
-        anime_name_capitalized = anime_name.title()  # Première lettre de chaque mot en majuscule
+        anime_name_capitalized = anime_name.capitalize()
         set_title(f"Co-Chan : {anime_name_capitalized}")
-        
-        formatted_url_name = format_url_name(anime_name)
-        
-        print(f"🔍 Recherche des versions disponibles pour {anime_name_capitalized}...")
-        available_languages = check_available_languages(base_url, formatted_url_name)
-        
-        if not available_languages:
-            print(f"⛔ Aucune version disponible pour {anime_name_capitalized}.")
-            return
-        
-        lang_display = {
-        "vostfr": "🇯🇵 [JP] VOSTFR (Sous-titré français)", 
-        "vf": "🇫🇷 [FR] VF (Version française)",
-        "va": "🇬🇧 [EN] VA (Version anglaise)",
-        "vkr": "🇰🇷 [KR] VKR (Version coréenne)",
-        "vcn": "🇨🇳 [CN] VCN (Version chinoise)",
-        "vqc": "🇨🇦 [QC] VQC (Version québécoise)",
-        "vf1": "🇫🇷 [FR] VF1 (Version française alternative 1)",
-        "vf2": "🇫🇷 [FR] VF2 (Version française alternative 2)",
-        "vf3": "🇫🇷 [FR] VF3 (Version française alternative 3)",
-        "vf4": "🇫🇷 [FR] VF4 (Version française alternative 4)",
-        "vf5": "🇫🇷 [FR] VF5 (Version française alternative 5)"
-        }
-        
-        print("\n📺 Versions disponibles :")
-        for i, lang in enumerate(available_languages, start=1):
-            print(f"{i}. {lang_display.get(lang, lang.upper())}")
-                
-        choice = input("\nChoisissez la version (numéro ou numéros séparés par des virgules) : ").strip()
-        
-        selected_languages = []
-        
-        if choice == str(len(available_languages) + 1):
-            selected_languages = available_languages
-        elif "," in choice:
-            for c in choice.split(","):
-                if c.strip().isdigit() and 1 <= int(c.strip()) <= len(available_languages):
-                    selected_languages.append(available_languages[int(c.strip()) - 1])
-        elif choice.isdigit() and 1 <= int(choice) <= len(available_languages):
-            selected_languages.append(available_languages[int(choice) - 1])
-        else:
-            print("⚠️ Choix non valide. Sélection par défaut utilisée.")
-            if "vostfr" in available_languages:
-                selected_languages.append("vostfr")
-                print(f"✅ VOSTFR sélectionné par défaut.")
-            else:
-                selected_languages.append(available_languages[0])
-                print(f"✅ {lang_display.get(available_languages[0], available_languages[0].upper())} sélectionné par défaut.")
-    
     formatted_url_name = format_url_name(anime_name)
+
+    # Vérifier les versions VF disponibles avant de proposer le choix de langue
+    available_vf_versions = check_available_languages(base_url, formatted_url_name)
     
-    if not check_disk_space(1): 
-        print("⛔ Espace disque insuffisant. Libérez de l'espace et réessayez.")
-        return
-    
-    if len(selected_languages) > 1:
-        main_folder = os.path.join(get_download_path(), anime_name.title())
-        os.makedirs(main_folder, exist_ok=True)
-    
-    successful_downloads = 0
-    for selected_language in selected_languages:
-        set_title(f"Co-Chan : {anime_name_capitalized} - {selected_language.upper()}")
+    if available_vf_versions:
+        print("\nVersions disponibles :")
+        for i, lang in enumerate(available_vf_versions, start=1):
+            print(f"{i}. {lang.upper()}")
+
+        print(f"{len(available_vf_versions) + 1}. VOSTFR")
         
-        if len(selected_languages) > 1:
-            folder_name = os.path.join(anime_name.title(), f"{anime_name}_{selected_language}")
+        # Sélection de la langue
+        choice = input("Choisissez la version : ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(available_vf_versions):
+            selected_language = available_vf_versions[int(choice) - 1]
         else:
-            folder_name = format_folder_name(anime_name, selected_language)
-        
-        print(f"\n🌟 Téléchargement de {anime_name_capitalized} en {selected_language.upper()}")
-        
-        print(f"🔍 Recherche des saisons disponibles...")
-        seasons = check_seasons(base_url, formatted_url_name, selected_language)
-        
-        if not seasons:
-            print(f"⛔ Aucune saison trouvée pour {anime_name_capitalized} en {selected_language.upper()}.")
+            selected_language = "vostfr"
+    else:
+        print("⛔ Aucune version VF trouvée, VOSTFR sélectionné automatiquement.")
+        selected_language = "vostfr"
+
+    folder_name = format_folder_name(anime_name, selected_language)
+
+    if not check_disk_space():
+        print("⛔ Espace disque insuffisant. Libérez de l'espace et réessayez.")
+        exit(1)
+
+    seasons = check_seasons(base_url, formatted_url_name, selected_language)
+    
+    # Dictionnaire pour suivre le nombre d'épisodes par saison et variante
+    episode_counters = {}
+    last_processed = {}  # Pour suivre la dernière saison/variante traitée
+    
+    for season, url, is_variant, variant_num in seasons:
+        # Si c'est un film ou un OAV, traiter séparément
+        if season in ["film", "oav"]:
+            sibnet_links, vidmoly_links = extract_video_links(url)
+            if sibnet_links or vidmoly_links:
+                download_videos(sibnet_links, vidmoly_links, season, folder_name)
             continue
         
-        print(f"✅ {len(seasons)} saison(s)/partie(s) trouvée(s).")
+        sibnet_links, vidmoly_links = extract_video_links(url)
+        total_episodes = len(sibnet_links) + len(vidmoly_links)
         
-        episode_counters = {}
-        last_processed = {}  # Pour suivre la dernière saison/variante traitée
+        if not (sibnet_links or vidmoly_links):
+            print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
+            continue
+            
+        # Déterminer le numéro de l'épisode de départ
+        start_episode = 1  # Par défaut, commencer à 1
         
-        sorted_seasons = sorted(seasons, key=lambda x: str(x[0]))
-        
-        for season, url, is_variant, variant_num in sorted_seasons:
-            if not check_disk_space():
-                print("⛔ Espace disque insuffisant. Arrêt du téléchargement.")
-                break
-                
-            if season in ["film", "oav"]:
-                print(f"\n🎬 Traitement {'des OAVs' if season == 'oav' else 'du film'} en {selected_language.upper()}")
-                sibnet_links, vidmoly_links = extract_video_links(url)
-                if sibnet_links or vidmoly_links:
-                    download_videos(sibnet_links, vidmoly_links, season, folder_name)
-                    successful_downloads += 1
-                else:
-                    print(f"⛔ Aucun lien vidéo trouvé pour {'les OAVs' if season == 'oav' else 'le film'}.")
-                continue
-            
-            sibnet_links, vidmoly_links = extract_video_links(url)
-            total_episodes = len(sibnet_links) + len(vidmoly_links)
-            
-            if not (sibnet_links or vidmoly_links):
-                print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
-                continue
-                
-            start_episode = 1  # Par défaut, commencer à 1
-            
-            if is_variant:
-                if season in last_processed:
-                    start_episode = last_processed[season] + 1
-                else:
-                    start_episode = 1
+        # Si c'est une variante, vérifier si on a déjà traité la saison principale ou d'autres variantes
+        if is_variant:
+            if season in last_processed:
+                # Continuer depuis le dernier épisode de cette saison
+                start_episode = last_processed[season] + 1
             else:
+                # Si c'est la première variante mais pas de saison principale, commencer à 1
                 start_episode = 1
-            
-            print(f"\n🎬 Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
-            print(f"🔢 Épisodes: {start_episode} à {start_episode + total_episodes - 1}")
-            
-            download_videos(sibnet_links, vidmoly_links, season, folder_name, start_episode)
-            successful_downloads += 1
-            
-            last_processed[season] = start_episode + total_episodes - 1
-    
+        else:
+            # Si c'est une saison principale, toujours commencer à 1
+            start_episode = 1
+        
+        print(f"♾️ Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
+        print(f"🔢 Épisodes: {start_episode} à {start_episode + total_episodes - 1}")
+        
+        download_videos(sibnet_links, vidmoly_links, season, folder_name, start_episode)
+        
+        # Mettre à jour le compteur pour cette saison
+        last_processed[season] = start_episode + total_episodes - 1
 
-    if successful_downloads > 0:
-        print(f"\n✅ Téléchargement terminé pour {anime_name_capitalized}!")
-        print(f"📂 Les fichiers ont été enregistrés dans: {get_download_path()}")
-    else:
-        print(f"\n⛔ Aucun téléchargement réussi pour {anime_name_capitalized}.")
-    
- 
 if __name__ == "__main__":
     main()
-
-
