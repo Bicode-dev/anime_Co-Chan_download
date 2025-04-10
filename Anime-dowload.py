@@ -315,6 +315,7 @@ def main():
         if len(sys.argv) == 3:
             anime_name = sys.argv[1].strip().lower()
             language_input = sys.argv[2].strip().lower()
+            anime_name_capitalized = anime_name.capitalize()
             set_title(f"Co-Chan : {anime_name_capitalized}")
             
             # Convertir l'entrée en langage en choix correspondant
@@ -323,7 +324,7 @@ def main():
             elif language_input == "vostfr":
                 language_choice = "2"
             else:
-                print(f"⛔ Langage '{language_input}' non reconnu. Utilisez 'vf' ou 'vostfr'.")
+                print(f"⛔ Langage '{language_input}' non reconnu. Utilisez 'vf' ou 'vostfr' ou autre valide.")
                 show_usage()
                 return
         else:
@@ -331,13 +332,11 @@ def main():
             show_usage()
             return
     else:
-        # Mode interactif si aucun argument n'est fourni
         anime_name = input("Entrez le nom de l'anime : ").strip().lower()
         anime_name_capitalized = anime_name.capitalize()
         set_title(f"Co-Chan : {anime_name_capitalized}")
     formatted_url_name = format_url_name(anime_name)
 
-    # Vérifier les versions VF disponibles avant de proposer le choix de langue
     available_vf_versions = check_available_languages(base_url, formatted_url_name)
     
     if available_vf_versions:
@@ -347,7 +346,6 @@ def main():
 
         print(f"{len(available_vf_versions) + 1}. VOSTFR")
         
-        # Sélection de la langue
         choice = input("Choisissez la version : ").strip()
         if choice.isdigit() and 1 <= int(choice) <= len(available_vf_versions):
             selected_language = available_vf_versions[int(choice) - 1]
@@ -357,7 +355,7 @@ def main():
         print("⛔ Aucune version VF trouvée, VOSTFR sélectionné automatiquement.")
         selected_language = "vostfr"
 
-    folder_name = format_folder_name(anime_name, selected_language)
+    folder_name = format_folder_name(anime_name, selected_language).capitalize()
 
     if not check_disk_space():
         print("⛔ Espace disque insuffisant. Libérez de l'espace et réessayez.")
@@ -365,12 +363,10 @@ def main():
 
     seasons = check_seasons(base_url, formatted_url_name, selected_language)
     
-    # Dictionnaire pour suivre le nombre d'épisodes par saison et variante
     episode_counters = {}
     last_processed = {}  # Pour suivre la dernière saison/variante traitée
     
     for season, url, is_variant, variant_num in seasons:
-        # Si c'est un film ou un OAV, traiter séparément
         if season in ["film", "oav"]:
             sibnet_links, vidmoly_links = extract_video_links(url)
             if sibnet_links or vidmoly_links:
@@ -384,19 +380,14 @@ def main():
             print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
             continue
             
-        # Déterminer le numéro de l'épisode de départ
         start_episode = 1  # Par défaut, commencer à 1
         
-        # Si c'est une variante, vérifier si on a déjà traité la saison principale ou d'autres variantes
         if is_variant:
             if season in last_processed:
-                # Continuer depuis le dernier épisode de cette saison
                 start_episode = last_processed[season] + 1
             else:
-                # Si c'est la première variante mais pas de saison principale, commencer à 1
                 start_episode = 1
         else:
-            # Si c'est une saison principale, toujours commencer à 1
             start_episode = 1
         
         print(f"♾️ Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
@@ -404,7 +395,6 @@ def main():
         
         download_videos(sibnet_links, vidmoly_links, season, folder_name, start_episode)
         
-        # Mettre à jour le compteur pour cette saison
         last_processed[season] = start_episode + total_episodes - 1
 
 if __name__ == "__main__":
