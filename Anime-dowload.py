@@ -1,3 +1,4 @@
+#lesjeuxmathis autor
 import os
 import platform
 import shutil
@@ -15,10 +16,8 @@ class MyLogger(object):
         pass
 
     def error(self, msg):
-        # On affiche directement l'erreur ici, mais l'écrasement sera fait ailleurs
         print(msg)
 def set_title(title_text):
-    """Set console title if on Windows or regular Linux, but not on Termux"""
     system = platform.system()
     
     # Check if running on Termux (Android)
@@ -91,23 +90,19 @@ def format_folder_name(name, language):
     return f"{name.lower()} {language.upper()}"
 
 def check_available_languages(base_url, name):
-    """ Vérifie les versions VF disponibles """
-    vf_versions = ["vf"] + [f"vf{i}" for i in range(1, 6)]
+    """Vérifie toutes les versions linguistiques disponibles"""
+    all_languages = ["vf", "va", "vkr", "vcn", "vqc", "vf1", "vf2", "vf3", "vf4", "vf5"]
     available_languages = []
-
-    for lang in vf_versions:
-
+    for lang in all_languages:
         season_url = f"{base_url}{name}/saison1/{lang}/episodes.js"
         season_response = requests.get(season_url)
         
-
         film_url = f"{base_url}{name}/film/{lang}/episodes.js"
         film_response = requests.get(film_url)
         
         if (season_response.status_code == 200 and season_response.text.strip()) or \
            (film_response.status_code == 200 and film_response.text.strip()):
             available_languages.append(lang)
-
     return available_languages
 
 def check_seasons(base_url, name, language):
@@ -320,6 +315,7 @@ def main():
         if len(sys.argv) == 3:
             anime_name = sys.argv[1].strip().lower()
             language_input = sys.argv[2].strip().lower()
+            set_title(f"Co-Chan : {anime_name_capitalized}")
             
             # Convertir l'entrée en langage en choix correspondant
             if language_input == "vf":
