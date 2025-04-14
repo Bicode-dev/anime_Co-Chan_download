@@ -87,7 +87,9 @@ def format_url_name(name):
 
 def format_folder_name(name, language):
     """Format du dossier de téléchargement"""
-    return f"{name.lower()} {language.upper()}"
+    capitalized_name = ' '.join(word.capitalize() for word in name.split())
+    return f"{capitalized_name} {language.upper()}"
+
 
 def check_available_languages(base_url, name):
     """Vérifie toutes les versions linguistiques disponibles"""
