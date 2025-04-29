@@ -255,23 +255,70 @@ def download_video(link, filename, season, episode, max_episode):
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
 
+def find_last_episode(folder_path, season):
+    """Trouve le dernier épisode téléchargé pour une saison spécifique"""
+    if not os.path.exists(folder_path):
+        return 0
+    
+    # Pattern pour trouver les fichiers correspondant à cette saison
+    # (supporte les formats s3_2, s3e2, s3-e2, etc.)
+    pattern = re.compile(rf's{season}[_\-]?e?(\d+)\.mp4', re.IGNORECASE)
+    
+    max_episode = 0
+    for filename in os.listdir(folder_path):
+        match = pattern.match(filename)
+        if match:
+            episode_num = int(match.group(1))
+            max_episode = max(max_episode, episode_num)
+    
+    return max_episode
+
 def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
     """Télécharge toutes les vidéos d'une saison"""
     download_dir = os.path.join(get_download_path(), folder_name)
     os.makedirs(download_dir, exist_ok=True)
 
-    total_episodes = len(sibnet_links) + len(vidmoly_links)
-    max_episode = current_episode + total_episodes - 1  # Calculer le dernier épisode
-    episode_counter = current_episode
+    # Vérifier si le dossier existe déjà et trouver le dernier épisode
+    last_episode = find_last_episode(download_dir, season)
+    
+    if last_episode > 0:
+        print(f"📁 Dossier existant trouvé avec le dernier épisode {last_episode} pour la saison {season}")
+        
+        # Proposer à l'utilisateur de continuer à partir du dernier épisode
+        choice = input(f"Continuer à partir de l'épisode {last_episode + 1} ? (O/n): ").strip().lower()
+        if choice != 'n':
+            current_episode = last_episode + 1
+            print(f"➡️ Téléchargement à partir de l'épisode {current_episode}")
+        else:
+            # Proposer un épisode de départ personnalisé
+            start_ep = input(f"À partir de quel épisode voulez-vous télécharger ? (1-{len(sibnet_links) + len(vidmoly_links)}): ").strip()
+            if start_ep.isdigit() and 1 <= int(start_ep) <= len(sibnet_links) + len(vidmoly_links):
+                current_episode = int(start_ep)
+                print(f"➡️ Téléchargement à partir de l'épisode {current_episode}")
+            else:
+                print("⚠️ Valeur invalide, le téléchargement commence à l'épisode 1")
+                current_episode = 1
 
-    print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {episode_counter} jusqu'à {max_episode})")
+    total_episodes = len(sibnet_links) + len(vidmoly_links)
+    max_episode = total_episodes  # Nombre total d'épisodes disponibles
+    
+    print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {current_episode} jusqu'à {max_episode})")
 
     # Vérification que les liens sont bien définis
     if not (sibnet_links or vidmoly_links):
         print(f"⛔ Aucune vidéo trouvée pour la saison {season}.")
         return  # Si aucun lien n'a été trouvé, on quitte la fonction.
 
-    for link in sibnet_links + vidmoly_links:
+    # Récupérer seulement les liens à partir de l'épisode souhaité
+    all_links = sibnet_links + vidmoly_links
+    if current_episode > 1:
+        if current_episode > len(all_links):
+            print(f"⛔ L'épisode de départ ({current_episode}) dépasse le nombre total d'épisodes ({len(all_links)})")
+            return
+        all_links = all_links[current_episode - 1:]
+
+    episode_counter = current_episode
+    for link in all_links:
         # Afficher le message de chargement animé avec des points entre chaque épisode
         sys.stdout.write("🌐 Chargement")
         sys.stdout.flush()
@@ -294,13 +341,7 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
         
         download_video(link, filename, season, episode_counter, max_episode)
         episode_counter += 1
-def show_usage():
-    """Affiche l'aide d'utilisation du script"""
-    print("Usage: python Code.py [nom_anime] [langage]")
-    print("Exemples:")
-    print("  python Code.py \"one piece\" vf     # Télécharge One Piece en VF")
-    print("  python Code.py naruto vostfr      # Télécharge Naruto en VOSTFR")
-    print("\nOu lancez le script sans arguments pour le mode interactif.")
+
 
 
 def main():
