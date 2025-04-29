@@ -256,32 +256,45 @@ def download_video(link, filename, season, episode, max_episode):
         return
 
 def find_last_season_and_episode(folder_path):
-    """Trouve la dernière saison et épisode téléchargés"""
+    """
+    Trouve la dernière saison et épisode téléchargés.
+    Vérifie les saisons du plus grand au plus petit, s'arrêtant dès qu'une saison non vide est trouvée.
+    """
     if not os.path.exists(folder_path):
         return 0, 0
     
     # Pattern pour trouver tous les fichiers d'anime (format s<saison>_e<episode> ou variations)
     pattern = re.compile(r's(\d+)[_\-]?e?(\d+)\.mp4', re.IGNORECASE)
     
-    max_season = 0
-    max_episode = 0
-    last_season = 0
-    
+    # Obtenir toutes les saisons disponibles
+    all_seasons = set()
     for filename in os.listdir(folder_path):
         match = pattern.match(filename)
         if match:
             season_num = int(match.group(1))
-            episode_num = int(match.group(2))
-            
-            # Si c'est une saison plus récente
-            if season_num > max_season:
-                max_season = season_num
-                max_episode = episode_num
-            # Si c'est la même saison mais un épisode plus récent
-            elif season_num == max_season and episode_num > max_episode:
-                max_episode = episode_num
+            all_seasons.add(season_num)
     
-    return max_season, max_episode
+    # Si aucune saison n'est trouvée
+    if not all_seasons:
+        return 0, 0
+    
+    # Parcourir les saisons du plus grand au plus petit
+    for season in sorted(all_seasons, reverse=True):
+        # Chercher le dernier épisode de cette saison
+        max_episode = 0
+        for filename in os.listdir(folder_path):
+            match = pattern.match(filename)
+            if match and int(match.group(1)) == season:
+                episode_num = int(match.group(2))
+                if episode_num > max_episode:
+                    max_episode = episode_num
+        
+        # Si nous avons trouvé des épisodes dans cette saison, retourner cette saison
+        if max_episode > 0:
+            return season, max_episode
+    
+    # Si aucun épisode n'a été trouvé dans aucune saison
+    return 0, 0
 
 def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
     """Télécharge toutes les vidéos d'une saison"""
