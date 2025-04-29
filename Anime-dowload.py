@@ -255,7 +255,7 @@ def download_video(link, filename, season, episode, max_episode):
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
 
-def find_last_episode(folder_path):
+def find_last_season_and_episode(folder_path):
     """Trouve la dernière saison et épisode téléchargés"""
     if not os.path.exists(folder_path):
         return 0, 0
@@ -288,16 +288,22 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
     download_dir = os.path.join(get_download_path(), folder_name)
     os.makedirs(download_dir, exist_ok=True)
 
-    # Vérifier si le dossier existe déjà et trouver le dernier épisode
-    last_episode = find_last_episode(download_dir, season)
+    # Vérifier si le dossier existe déjà et trouver le dernier épisode de la saison
+    last_season, last_episode = find_last_season_and_episode(download_dir)
     
-    if last_episode > 0:
-        print(f"📁 Dossier existant trouvé avec le dernier épisode {last_episode} pour la saison {season}")
+    # Vérifier si cette saison a déjà des épisodes ou si c'est une nouvelle saison
+    pattern = re.compile(rf's{season}[_\-]?e?(\d+)\.mp4', re.IGNORECASE)
+    season_episodes = [int(pattern.match(f).group(1)) for f in os.listdir(download_dir) if pattern.match(f)]
+    season_last_episode = max(season_episodes) if season_episodes else 0
+    
+    # Si on a trouvé des épisodes pour cette saison
+    if season_last_episode > 0:
+        print(f"📁 Dossier existant trouvé avec le dernier épisode {season_last_episode} pour la saison {season}")
         
         # Proposer à l'utilisateur de continuer à partir du dernier épisode
-        choice = input(f"Continuer à partir de l'épisode {last_episode + 1} ? (O/n): ").strip().lower()
+        choice = input(f"Continuer à partir de l'épisode {season_last_episode + 1} ? (O/n): ").strip().lower()
         if choice != 'n':
-            current_episode = last_episode + 1
+            current_episode = season_last_episode + 1
             print(f"➡️ Téléchargement à partir de l'épisode {current_episode}")
         else:
             # Proposer un épisode de départ personnalisé
@@ -308,6 +314,10 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
             else:
                 print("⚠️ Valeur invalide, le téléchargement commence à l'épisode 1")
                 current_episode = 1
+    # Si c'est une nouvelle saison après une saison existante
+    elif last_season > 0 and season > last_season:
+        print(f"📁 Nouvelle saison détectée. Dernière saison téléchargée : S{last_season} E{last_episode}")
+        print(f"➡️ Téléchargement de la saison {season} à partir de l'épisode 1")
 
     total_episodes = len(sibnet_links) + len(vidmoly_links)
     max_episode = total_episodes  # Nombre total d'épisodes disponibles
