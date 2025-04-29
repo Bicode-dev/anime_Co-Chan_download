@@ -255,7 +255,7 @@ def download_video(link, filename, season, episode, max_episode):
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
 
-def find_last_season_and_episode(folder_path):
+def find_last_episode(folder_path):
     """Trouve la dernière saison et épisode téléchargés"""
     if not os.path.exists(folder_path):
         return 0, 0
