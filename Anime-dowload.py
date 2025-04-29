@@ -255,23 +255,33 @@ def download_video(link, filename, season, episode, max_episode):
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
 
-def find_last_episode(folder_path, season):
-    """Trouve le dernier épisode téléchargé pour une saison spécifique"""
+def find_last_season_and_episode(folder_path):
+    """Trouve la dernière saison et épisode téléchargés"""
     if not os.path.exists(folder_path):
-        return 0
+        return 0, 0
     
-    # Pattern pour trouver les fichiers correspondant à cette saison
-    # (supporte les formats s3_2, s3e2, s3-e2, etc.)
-    pattern = re.compile(rf's{season}[_\-]?e?(\d+)\.mp4', re.IGNORECASE)
+    # Pattern pour trouver tous les fichiers d'anime (format s<saison>_e<episode> ou variations)
+    pattern = re.compile(r's(\d+)[_\-]?e?(\d+)\.mp4', re.IGNORECASE)
     
+    max_season = 0
     max_episode = 0
+    last_season = 0
+    
     for filename in os.listdir(folder_path):
         match = pattern.match(filename)
         if match:
-            episode_num = int(match.group(1))
-            max_episode = max(max_episode, episode_num)
+            season_num = int(match.group(1))
+            episode_num = int(match.group(2))
+            
+            # Si c'est une saison plus récente
+            if season_num > max_season:
+                max_season = season_num
+                max_episode = episode_num
+            # Si c'est la même saison mais un épisode plus récent
+            elif season_num == max_season and episode_num > max_episode:
+                max_episode = episode_num
     
-    return max_episode
+    return max_season, max_episode
 
 def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
     """Télécharge toutes les vidéos d'une saison"""
