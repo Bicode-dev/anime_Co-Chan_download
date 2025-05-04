@@ -257,12 +257,36 @@ def download_video(link, filename, season, episode, max_episode):
 
 def ask_for_starting_point():
     while True:
-        starting_point = input("Spécifiez un point de départ (exemple: s1_e5) ou 0 pour tout télécharger: ").strip().lower()
+        starting_point = input("Spécifiez un point de départ (exemple: s1_e5, sfilm_e1, soav_e1), 'film' pour les films, 'oav' pour les OAV, 0 pour tout télécharger : ").strip().lower()
         
         if starting_point == "0":
             print("➡️ Téléchargement de tous les épisodes de toutes les saisons")
             return 0, 0
             
+        if starting_point in ["film", "films", "movie"]:
+            print("➡️ Téléchargement de tous les films uniquement")
+            return "film", 0
+            
+        if starting_point == "oav":
+            print("➡️ Téléchargement de tous les OAV uniquement")
+            return "oav", 0
+        
+        # Vérifier les patterns spéciaux pour les films et OAV
+        film_pattern = re.compile(r'sfilm_e(\d+)')
+        film_match = film_pattern.match(starting_point)
+        if film_match:
+            episode_num = int(film_match.group(1))
+            print(f"➡️ Téléchargement des films à partir de l'épisode {episode_num}")
+            return "film", episode_num
+            
+        oav_pattern = re.compile(r'soav_e(\d+)')
+        oav_match = oav_pattern.match(starting_point)
+        if oav_match:
+            episode_num = int(oav_match.group(1))
+            print(f"➡️ Téléchargement des OAV à partir de l'épisode {episode_num}")
+            return "oav", episode_num
+            
+        # Pattern original pour les saisons normales
         pattern = re.compile(r's(\d+)_e(\d+)')
         match = pattern.match(starting_point)
         
@@ -272,7 +296,7 @@ def ask_for_starting_point():
             print(f"➡️ Téléchargement à partir de la saison {season_num}, épisode {episode_num}")
             return season_num, episode_num
         else:
-            print("⚠️ Format incorrect. Utilisez s<saison>_e<episode> (exemple: s1_e5) ou 0 pour tout")
+            print("⚠️ Format incorrect. Utilisez s<saison>_e<episode> (exemple: s1_e5), sfilm_e<episode>, soav_e<episode>, 0 pour tout")
 
 
 def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
@@ -381,15 +405,21 @@ def main():
     last_processed = {}
     
     for season, url, is_variant, variant_num in seasons:
-        if start_season > 0 and season != "film" and season != "oav" and season < start_season:
+        if isinstance(start_season, int) and start_season > 0 and season != "film" and season != "oav" and season < start_season:
             print(f"⏭️ Saison {season} ignorée (démarre à S{start_season})")
             continue
             
         if season in ["film", "oav"]:
-            sibnet_links, vidmoly_links = extract_video_links(url)
-            if sibnet_links or vidmoly_links:
-                if start_season == 0:
-                    download_videos(sibnet_links, vidmoly_links, season, folder_name)
+            # Vérifier si on doit traiter cette section
+            if start_season == 0 or start_season == season:
+                sibnet_links, vidmoly_links = extract_video_links(url)
+                if sibnet_links or vidmoly_links:
+                    # Utiliser start_episode si on commence à partir d'un épisode spécifique pour film/oav
+                    current_episode = 1
+                    if start_season == season and start_episode > 0:
+                        current_episode = start_episode
+                    
+                    download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode)
             continue
         
         sibnet_links, vidmoly_links = extract_video_links(url)
@@ -401,7 +431,7 @@ def main():
             
         current_episode = 1
         
-        if season == start_season and start_season > 0:
+        if season == start_season and isinstance(start_season, int) and start_season > 0:
             current_episode = start_episode
         
         if is_variant:
