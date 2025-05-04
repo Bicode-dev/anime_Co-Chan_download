@@ -257,7 +257,7 @@ def download_video(link, filename, season, episode, max_episode):
 
 def ask_for_starting_point():
     while True:
-        starting_point = input("Spécifiez un point de départ (exemple: s1_e5), 'films' pour les films, 'oav' pour les OAV, 0 pour tout télécharger : ").strip().lower()
+        starting_point = input("Spécifiez un point de départ (exemple: s1_e5), 'film' pour les film, 'oav' pour les OAV, 0 pour tout télécharger : ").strip().lower()
         
         if starting_point == "0":
             print("➡️ Téléchargement de tous les épisodes de toutes les saisons")
@@ -388,14 +388,14 @@ def main():
     last_processed = {}
     
     for season, url, is_variant, variant_num in seasons:
-        if start_season > 0 and season != "film" and season != "oav" and season < start_season:
+        if isinstance(start_season, int) and start_season > 0 and season != "film" and season != "oav" and season < start_season:
             print(f"⏭️ Saison {season} ignorée (démarre à S{start_season})")
             continue
             
         if season in ["film", "oav"]:
             sibnet_links, vidmoly_links = extract_video_links(url)
             if sibnet_links or vidmoly_links:
-                if start_season == 0:
+                if start_season == 0 or start_season == season:
                     download_videos(sibnet_links, vidmoly_links, season, folder_name)
             continue
         
@@ -408,7 +408,7 @@ def main():
             
         current_episode = 1
         
-        if season == start_season and start_season > 0:
+        if season == start_season and isinstance(start_season, int) and start_season > 0:
             current_episode = start_episode
         
         if is_variant:
