@@ -257,22 +257,39 @@ def download_video(link, filename, season, episode, max_episode):
 
 def ask_for_starting_point():
     while True:
-        starting_point = input("Spécifiez un point de départ (exemple: s1_e5) ou 0 pour tout télécharger: ").strip().lower()
+        starting_point = input("Spécifiez un point de départ (exemple: s1_e5, film_e1, oav_e1) ou 0 pour tout télécharger: ").strip().lower()
         
         if starting_point == "0":
             print("➡️ Téléchargement de tous les épisodes de toutes les saisons")
             return 0, 0
-            
-        pattern = re.compile(r's(\d+)_e(\d+)')
-        match = pattern.match(starting_point)
         
-        if match:
-            season_num = int(match.group(1))
-            episode_num = int(match.group(2))
+        # Pattern pour saisons normales: s1_e5    
+        season_pattern = re.compile(r's(\d+)_e(\d+)')
+        season_match = season_pattern.match(starting_point)
+        
+        # Pattern pour films: film_e1
+        film_pattern = re.compile(r'film_e(\d+)')
+        film_match = film_pattern.match(starting_point)
+        
+        # Pattern pour OAVs: oav_e1
+        oav_pattern = re.compile(r'oav_e(\d+)')
+        oav_match = oav_pattern.match(starting_point)
+        
+        if season_match:
+            season_num = int(season_match.group(1))
+            episode_num = int(season_match.group(2))
             print(f"➡️ Téléchargement à partir de la saison {season_num}, épisode {episode_num}")
             return season_num, episode_num
+        elif film_match:
+            episode_num = int(film_match.group(1))
+            print(f"➡️ Téléchargement à partir du film, épisode {episode_num}")
+            return "film", episode_num
+        elif oav_match:
+            episode_num = int(oav_match.group(1))
+            print(f"➡️ Téléchargement à partir de l'OAV, épisode {episode_num}")
+            return "oav", episode_num
         else:
-            print("⚠️ Format incorrect. Utilisez s<saison>_e<episode> (exemple: s1_e5) ou 0 pour tout")
+            print("⚠️ Format incorrect. Utilisez s<saison>_e<episode>, film_e<episode>, oav_e<episode> ou 0 pour tout")
 
 
 def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
@@ -379,19 +396,30 @@ def main():
     
     episode_counters = {}
     last_processed = {}
-    
+    # Dans la fonction main(), modifiez la section qui traite les saisons comme ceci:
     for season, url, is_variant, variant_num in seasons:
-        if start_season > 0 and season != "film" and season != "oav" and season < start_season:
-            print(f"⏭️ Saison {season} ignorée (démarre à S{start_season})")
-            continue
+        # Vérification pour sauter les saisons antérieures si un point de départ a été défini
+        if start_season != 0 and start_season != "film" and start_season != "oav":
+            # C'est une saison normale
+            if season != "film" and season != "oav" and season < start_season:
+                print(f"⏭️ Saison {season} ignorée (démarre à S{start_season})")
+                continue
             
+        # Traitement des films et OAVs
         if season in ["film", "oav"]:
-            sibnet_links, vidmoly_links = extract_video_links(url)
-            if sibnet_links or vidmoly_links:
-                if start_season == 0:
+            # Si l'utilisateur a demandé spécifiquement ce type de contenu
+            if start_season == season:
+                sibnet_links, vidmoly_links = extract_video_links(url)
+                if sibnet_links or vidmoly_links:
+                    download_videos(sibnet_links, vidmoly_links, season, folder_name, start_episode)
+            # Sinon, télécharger tous les contenus si l'utilisateur a demandé tout
+            elif start_season == 0:
+                sibnet_links, vidmoly_links = extract_video_links(url)
+                if sibnet_links or vidmoly_links:
                     download_videos(sibnet_links, vidmoly_links, season, folder_name)
             continue
         
+        # Traitement des saisons normales
         sibnet_links, vidmoly_links = extract_video_links(url)
         total_episodes = len(sibnet_links) + len(vidmoly_links)
         
@@ -401,7 +429,7 @@ def main():
             
         current_episode = 1
         
-        if season == start_season and start_season > 0:
+        if season == start_season and start_season != 0:
             current_episode = start_episode
         
         if is_variant:
