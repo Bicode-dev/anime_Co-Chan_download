@@ -257,11 +257,19 @@ def download_video(link, filename, season, episode, max_episode):
 
 def ask_for_starting_point():
     while True:
-        starting_point = input("Spécifiez un point de départ (exemple: s1_e5) ou 0 pour tout télécharger: ").strip().lower()
+        starting_point = input("Spécifiez un point de départ (exemple: s1_e5), 'films' pour les films, 'oav' pour les OAV, 0 pour tout télécharger : ").strip().lower()
         
         if starting_point == "0":
             print("➡️ Téléchargement de tous les épisodes de toutes les saisons")
             return 0, 0
+            
+        if starting_point in ["film", "films", "movie"]:
+            print("➡️ Téléchargement de tous les films uniquement")
+            return "film", 0
+            
+        if starting_point == "oav":
+            print("➡️ Téléchargement de tous les OAV uniquement")
+            return "oav", 0
             
         pattern = re.compile(r's(\d+)_e(\d+)')
         match = pattern.match(starting_point)
@@ -272,8 +280,7 @@ def ask_for_starting_point():
             print(f"➡️ Téléchargement à partir de la saison {season_num}, épisode {episode_num}")
             return season_num, episode_num
         else:
-            print("⚠️ Format incorrect. Utilisez s<saison>_e<episode> (exemple: s1_e5) ou 0 pour tout")
-
+            print("⚠️ Format incorrect. Utilisez s<saison>_e<episode> (exemple: s1_e5), 0 pour tout, 'film'/'films'/'movie' pour les films, 'oav' pour les OAV")
 
 def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
     download_dir = os.path.join(get_download_path(), folder_name)
