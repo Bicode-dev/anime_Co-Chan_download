@@ -21,7 +21,7 @@ python Anime-dowload.py "one piece" vf
 
 Pour télécharger "Naruto" en VOSTFR :
 
-Copierpython Anime-dowload.py naruto vostfr
+python Anime-dowload.py naruto vostfr
 
 Pour afficher l'aide :
 
