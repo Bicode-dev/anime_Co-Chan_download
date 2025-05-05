@@ -396,52 +396,77 @@ def main():
     
     episode_counters = {}
     last_processed = {}
-    # Dans la fonction main(), modifiez la section qui traite les saisons comme ceci:
+    
+    # Filtrer et traiter les saisons/films/OAVs en fonction du point de départ
     for season, url, is_variant, variant_num in seasons:
-        # Vérification pour sauter les saisons antérieures si un point de départ a été défini
-        if start_season != 0 and start_season != "film" and start_season != "oav":
-            # C'est une saison normale
-            if season != "film" and season != "oav" and season < start_season:
+        # Cas 1: Toutes les saisons/films/OAVs demandés (start_season = 0)
+        if start_season == 0:
+            # Traiter tous les contenus
+            sibnet_links, vidmoly_links = extract_video_links(url)
+            if sibnet_links or vidmoly_links:
+                # Pour les films et OAVs, on n'affiche pas le numéro de saison mais le type
+                if season in ["film", "oav"]:
+                    season_display = season
+                else:
+                    season_display = season
+                download_videos(sibnet_links, vidmoly_links, season_display, folder_name, 1)
+            continue
+            
+        # Cas 2: Point de départ = film
+        elif start_season == "film":
+            # Ignorer tout ce qui n'est pas un film
+            if season != "film":
+                continue
+            sibnet_links, vidmoly_links = extract_video_links(url)
+            if sibnet_links or vidmoly_links:
+                download_videos(sibnet_links, vidmoly_links, "film", folder_name, start_episode)
+            continue
+            
+        # Cas 3: Point de départ = oav
+        elif start_season == "oav":
+            # Ignorer tout ce qui n'est pas un oav
+            if season != "oav":
+                continue
+            sibnet_links, vidmoly_links = extract_video_links(url)
+            if sibnet_links or vidmoly_links:
+                download_videos(sibnet_links, vidmoly_links, "oav", folder_name, start_episode)
+            continue
+            
+        # Cas 4: Point de départ = saison spécifique
+        else:
+            # Ignorer les films et OAVs car l'utilisateur a demandé une saison spécifique
+            if season in ["film", "oav"]:
+                continue
+                
+            # Ignorer les saisons antérieures à celle demandée
+            if season < start_season:
                 print(f"⏭️ Saison {season} ignorée (démarre à S{start_season})")
                 continue
             
-        # Traitement des films et OAVs
-        if season in ["film", "oav"]:
-            # Si l'utilisateur a demandé spécifiquement ce type de contenu
-            if start_season == season:
-                sibnet_links, vidmoly_links = extract_video_links(url)
-                if sibnet_links or vidmoly_links:
-                    download_videos(sibnet_links, vidmoly_links, season, folder_name, start_episode)
-            # Sinon, télécharger tous les contenus si l'utilisateur a demandé tout
-            elif start_season == 0:
-                sibnet_links, vidmoly_links = extract_video_links(url)
-                if sibnet_links or vidmoly_links:
-                    download_videos(sibnet_links, vidmoly_links, season, folder_name)
-            continue
-        
-        # Traitement des saisons normales
-        sibnet_links, vidmoly_links = extract_video_links(url)
-        total_episodes = len(sibnet_links) + len(vidmoly_links)
-        
-        if not (sibnet_links or vidmoly_links):
-            print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
-            continue
+            sibnet_links, vidmoly_links = extract_video_links(url)
+            total_episodes = len(sibnet_links) + len(vidmoly_links)
             
-        current_episode = 1
-        
-        if season == start_season and start_season != 0:
-            current_episode = start_episode
-        
-        if is_variant:
-            if season in last_processed:
-                current_episode = last_processed[season] + 1
-        
-        print(f"♾️ Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
-        print(f"🔢 Épisodes: {current_episode} à {current_episode + total_episodes - 1}")
-        
-        download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode)
-        
-        last_processed[season] = current_episode + total_episodes - 1
+            if not (sibnet_links or vidmoly_links):
+                print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
+                continue
+                
+            current_episode = 1
+            
+            # Si c'est la saison de départ, utiliser l'épisode de départ spécifié
+            if season == start_season:
+                current_episode = start_episode
+            
+            # Pour les variantes de saison, continuer à partir du dernier épisode traité
+            if is_variant:
+                if season in last_processed:
+                    current_episode = last_processed[season] + 1
+            
+            print(f"♾️ Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
+            print(f"🔢 Épisodes: {current_episode} à {current_episode + total_episodes - 1}")
+            
+            download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode)
+            
+            last_processed[season] = current_episode + total_episodes - 1
 
 if __name__ == "__main__":
     main()
