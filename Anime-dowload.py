@@ -215,20 +215,13 @@ def check_http_403(url):
 def get_anime_image(anime_name, folder_name):
     """Récupère l'image de l'anime et configure l'icône du dossier"""
     try:
-        # Format nom complet de l'anime pour l'URL
         url_name = anime_name.replace(" ", "+")  # Utiliser + pour l'encodage de l'URL
         
-        # Requête API Jikan
         url = f"https://api.jikan.moe/v4/anime?q={url_name}&limit=1"
         
         response = requests.get(url)
         response.raise_for_status()  # Lever une exception en cas d'erreur HTTP
         
-        # Enregistrer la réponse API dans un fichier log
-        log_file_path = os.path.join(folder_name, f"{anime_name.replace(' ', '_')}_api.log")
-        with open(log_file_path, "w", encoding="utf-8") as log_file:
-            log_file.write(response.text)
-            
         data = response.json()
         if not data["data"]:
             return
@@ -236,49 +229,38 @@ def get_anime_image(anime_name, folder_name):
         anime = data["data"][0]
         image_url = anime["images"]["jpg"]["large_image_url"]
         
-        # Télécharger l'image
         image_response = requests.get(image_url)
         image_response.raise_for_status()
         image_data = image_response.content
         
-        # Sauvegarder l'image JPG originale
         jpg_path = os.path.join(folder_name, "cover.jpg")
         with open(jpg_path, 'wb') as f:
             f.write(image_data)
             
-        # Convertir en ICO en préservant les proportions
         ico_path = os.path.join(folder_name, "folder.ico")
         
-        # Ouvrir l'image avec PIL
         image = Image.open(io.BytesIO(image_data))
         
-        # Créer une image carrée avec fond transparent
         size = 256
         square_img = Image.new('RGBA', (size, size), (0, 0, 0, 0))  # Fond transparent
         
-        # Redimensionner l'image originale en préservant le ratio
         width, height = image.size
         if width > height:
             new_height = int(height * size / width)
             resized_img = image.resize((size, new_height))
-            # Centrer verticalement
             y_offset = (size - new_height) // 2
             square_img.paste(resized_img, (0, y_offset))
         else:
             new_width = int(width * size / height)
             resized_img = image.resize((new_width, size))
-            # Centrer horizontalement
             x_offset = (size - new_width) // 2
             square_img.paste(resized_img, (x_offset, 0))
         
-        # Sauvegarder comme ICO
         square_img.save(ico_path, format='ICO', sizes=[(size, size)])
         
-        # Rendre le fichier ICO caché
         if os.name == 'nt':  # Vérifier si on est sur Windows
             os.system(f'attrib +h "{ico_path}"')
         
-        # Créer le fichier desktop.ini avec le chemin ABSOLU vers l'icône
         absolute_ico_path = os.path.abspath(ico_path)
         desktop_ini_path = os.path.join(folder_name, "desktop.ini")
         
