@@ -7,6 +7,8 @@ import requests
 import re
 import time
 from yt_dlp import YoutubeDL
+from PIL import Image, ImageOps
+import io
 
 class MyLogger(object):
     def debug(self, msg):
@@ -210,6 +212,95 @@ def check_http_403(url):
     print("⛔ Sibnet vous a temporairement banni, veuillez réessayer dans un maximum de 2 jours.")
     time.sleep(20)  # Pause de 20 secondes pour permettre à l'utilisateur de voir le message
     return True
+def get_anime_image(anime_name, folder_name):
+    """Récupère l'image de l'anime et configure l'icône du dossier"""
+    try:
+        # Format nom complet de l'anime pour l'URL
+        url_name = anime_name.replace(" ", "+")  # Utiliser + pour l'encodage de l'URL
+        
+        # Requête API Jikan
+        url = f"https://api.jikan.moe/v4/anime?q={url_name}&limit=1"
+        
+        response = requests.get(url)
+        response.raise_for_status()  # Lever une exception en cas d'erreur HTTP
+        
+        # Enregistrer la réponse API dans un fichier log
+        log_file_path = os.path.join(folder_name, f"{anime_name.replace(' ', '_')}_api.log")
+        with open(log_file_path, "w", encoding="utf-8") as log_file:
+            log_file.write(response.text)
+            
+        data = response.json()
+        if not data["data"]:
+            return
+            
+        anime = data["data"][0]
+        image_url = anime["images"]["jpg"]["large_image_url"]
+        
+        # Télécharger l'image
+        image_response = requests.get(image_url)
+        image_response.raise_for_status()
+        image_data = image_response.content
+        
+        # Sauvegarder l'image JPG originale
+        jpg_path = os.path.join(folder_name, "cover.jpg")
+        with open(jpg_path, 'wb') as f:
+            f.write(image_data)
+            
+        # Convertir en ICO en préservant les proportions
+        ico_path = os.path.join(folder_name, "folder.ico")
+        
+        # Ouvrir l'image avec PIL
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Créer une image carrée avec fond transparent
+        size = 256
+        square_img = Image.new('RGBA', (size, size), (0, 0, 0, 0))  # Fond transparent
+        
+        # Redimensionner l'image originale en préservant le ratio
+        width, height = image.size
+        if width > height:
+            new_height = int(height * size / width)
+            resized_img = image.resize((size, new_height))
+            # Centrer verticalement
+            y_offset = (size - new_height) // 2
+            square_img.paste(resized_img, (0, y_offset))
+        else:
+            new_width = int(width * size / height)
+            resized_img = image.resize((new_width, size))
+            # Centrer horizontalement
+            x_offset = (size - new_width) // 2
+            square_img.paste(resized_img, (x_offset, 0))
+        
+        # Sauvegarder comme ICO
+        square_img.save(ico_path, format='ICO', sizes=[(size, size)])
+        
+        # Rendre le fichier ICO caché
+        if os.name == 'nt':  # Vérifier si on est sur Windows
+            os.system(f'attrib +h "{ico_path}"')
+        
+        # Créer le fichier desktop.ini avec le chemin ABSOLU vers l'icône
+        absolute_ico_path = os.path.abspath(ico_path)
+        desktop_ini_path = os.path.join(folder_name, "desktop.ini")
+        
+        with open(desktop_ini_path, "w") as ini_file:
+            ini_file.write(f"""[.ShellClassInfo]
+IconResource={absolute_ico_path},0
+[ViewState]
+Mode=
+Vid=
+FolderType=Generic
+""")
+        
+        # Rendre les fichiers système (Windows uniquement)
+        if os.name == 'nt':
+            os.system(f'attrib +s "{folder_name}"')  # Dossier système
+            os.system(f'attrib +h +s "{desktop_ini_path}"')  # Fichier caché et système
+        
+    except Exception:
+        # Silencieusement ignorer toutes les erreurs liées aux images
+        pass
+
+
 
 def extract_video_links(url):
     """Extrait les liens vidéo Sibnet et Vidmoly"""
@@ -295,6 +386,13 @@ def ask_for_starting_point():
 def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
     download_dir = os.path.join(get_download_path(), folder_name)
     os.makedirs(download_dir, exist_ok=True)
+    
+    # Correction ici: extraire le nom complet de l'anime du dossier, pas juste le premier mot
+    anime_name = folder_name.split(" ")[:-1]  # Tout sauf le dernier élément (VF/VOSTFR)
+    anime_name = " ".join(anime_name)  # Reconstituer le nom complet
+    
+    # Appeler get_anime_image avec le nom complet
+    get_anime_image(anime_name, download_dir)
 
     total_episodes = len(sibnet_links) + len(vidmoly_links)
     max_episode = total_episodes
@@ -332,7 +430,6 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
         
         download_video(link, filename, season, episode_counter, max_episode)
         episode_counter += 1
-
 
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
