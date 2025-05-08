@@ -1,3 +1,4 @@
+#lesjeuxmathis autor
 import os
 import platform
 import shutil
@@ -5,16 +6,17 @@ import sys
 import requests
 import re
 import time
-from yt_dlp import YoutubeDL
-import io
+import importlib.util
 
-# Vérifier si OpenCV est installé
-try:
-    import cv2
-    import numpy as np
-    OPENCV_AVAILABLE = True
-except ImportError:
-    OPENCV_AVAILABLE = False
+# Check if PIL (Pillow) is installed
+pil_available = importlib.util.find_spec("PIL") is not None
+
+# Only import PIL if it's available
+if pil_available:
+    from PIL import Image, ImageOps
+    import io
+
+from yt_dlp import YoutubeDL
 
 class MyLogger(object):
     def debug(self, msg):
@@ -222,65 +224,54 @@ def get_anime_image(anime_name, folder_name):
     """Récupère l'image de l'anime et configure l'icône du dossier"""
     try:
         url_name = anime_name.replace(" ", "+")  # Utiliser + pour l'encodage de l'URL
-
+        
         url = f"https://api.jikan.moe/v4/anime?q={url_name}&limit=1"
-
+        
         response = requests.get(url)
         response.raise_for_status()  # Lever une exception en cas d'erreur HTTP
-
+        
         data = response.json()
         if not data["data"]:
             return
-
+            
         anime = data["data"][0]
         image_url = anime["images"]["jpg"]["large_image_url"]
-
+        
         image_response = requests.get(image_url)
         image_response.raise_for_status()
         image_data = image_response.content
-
+        
         jpg_path = os.path.join(folder_name, "cover.jpg")
         with open(jpg_path, 'wb') as f:
             f.write(image_data)
-
+            
         ico_path = os.path.join(folder_name, "folder.ico")
-
-        # Lire l'image avec OpenCV
-        nparr = np.frombuffer(image_data, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        # Créer une image carrée avec fond transparent
+        image = Image.open(io.BytesIO(image_data))
+        
         size = 256
-        height, width = image.shape[:2]
+        square_img = Image.new('RGBA', (size, size), (0, 0, 0, 0))  # Fond transparent
         
-        # Créer une image carrée avec un canal alpha (RGBA)
-        square_img = np.zeros((size, size, 4), dtype=np.uint8)
-        
-        # Redimensionner l'image en conservant les proportions
+        width, height = image.size
         if width > height:
             new_height = int(height * size / width)
-            resized_img = cv2.resize(image, (size, new_height))
+            resized_img = image.resize((size, new_height))
             y_offset = (size - new_height) // 2
-            # Convertir BGR en BGRA (ajouter canal alpha)
-            resized_img_rgba = cv2.cvtColor(resized_img, cv2.COLOR_BGR2BGRA)
-            square_img[y_offset:y_offset+new_height, 0:size] = resized_img_rgba
+            square_img.paste(resized_img, (0, y_offset))
         else:
             new_width = int(width * size / height)
-            resized_img = cv2.resize(image, (new_width, size))
+            resized_img = image.resize((new_width, size))
             x_offset = (size - new_width) // 2
-            # Convertir BGR en BGRA (ajouter canal alpha)
-            resized_img_rgba = cv2.cvtColor(resized_img, cv2.COLOR_BGR2BGRA)
-            square_img[0:size, x_offset:x_offset+new_width] = resized_img_rgba
+            square_img.paste(resized_img, (x_offset, 0))
         
-        # Enregistrer l'image au format ICO
-        cv2.imwrite(ico_path, square_img)
-
+        square_img.save(ico_path, format='ICO', sizes=[(size, size)])
+        
         if os.name == 'nt':  # Vérifier si on est sur Windows
             os.system(f'attrib +h "{ico_path}"')
-
+        
         absolute_ico_path = os.path.abspath(ico_path)
         desktop_ini_path = os.path.join(folder_name, "desktop.ini")
-
+        
         with open(desktop_ini_path, "w") as ini_file:
             ini_file.write(f"""[.ShellClassInfo]
 IconResource={absolute_ico_path},0
@@ -289,13 +280,13 @@ Mode=
 Vid=
 FolderType=Generic
 """)
-
+        
         # Rendre les fichiers système (Windows uniquement)
         if os.name == 'nt':
             os.system(f'attrib +s "{folder_name}"')  # Dossier système
             os.system(f'attrib +h +s "{desktop_ini_path}"')  # Fichier caché et système
-
-    except Exception as e:
+        
+    except Exception:
         # Silencieusement ignorer toutes les erreurs liées aux images
         pass
 
