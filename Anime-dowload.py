@@ -8,19 +8,14 @@ import time
 from yt_dlp import YoutubeDL
 import io
 
-# Détection si on est sur Termux (Android)
-is_termux = platform.system() == "Linux" and "ANDROID_STORAGE" in os.environ
-
-# Import conditionnel de OpenCV uniquement si on n'est pas sur Termux
-if not is_termux:
-    try:
-        import cv2
-        import numpy as np
-        HAS_OPENCV = True
-    except ImportError:
-        HAS_OPENCV = False
-else:
-    HAS_OPENCV = False
+# Vérifier si OpenCV est installé
+try:
+    import cv2
+    import numpy as np
+    OPENCV_AVAILABLE = True
+except ImportError:
+    OPENCV_AVAILABLE = False
+    print("Info: OpenCV n'est pas installé. Les fonctionnalités d'image avancées sont désactivées.")
 
 class MyLogger(object):
     def debug(self, msg):
@@ -31,7 +26,6 @@ class MyLogger(object):
 
     def error(self, msg):
         print(msg)
-
 def set_title(title_text):
     system = platform.system()
     
