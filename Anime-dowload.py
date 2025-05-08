@@ -15,7 +15,6 @@ try:
     OPENCV_AVAILABLE = True
 except ImportError:
     OPENCV_AVAILABLE = False
-    print("Info: OpenCV n'est pas installé. Les fonctionnalités d'image avancées sont désactivées.")
 
 class MyLogger(object):
     def debug(self, msg):
