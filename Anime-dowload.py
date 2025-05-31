@@ -8,10 +8,8 @@ import re
 import time
 import importlib.util
 
-# Check if PIL (Pillow) is installed
 pil_available = importlib.util.find_spec("PIL") is not None
 
-# Only import PIL if it's available
 if pil_available:
     from PIL import Image, ImageOps
     import io
@@ -27,22 +25,20 @@ class MyLogger(object):
 
     def error(self, msg):
         print(msg)
+
 def set_title(title_text):
     system = platform.system()
     
-    # Check if running on Termux (Android)
     is_termux = system == "Linux" and "ANDROID_STORAGE" in os.environ
     
     if system == "Windows":
         os.system(f"title {title_text}")
     elif system == "Linux" and not is_termux:
-        # For regular Linux terminals that support title setting
         os.system(f'echo -e "\033]0;{title_text}\007"')
-    # Skip title setting on Termux as it's not supported
 
 set_title("Co-Chan")
+
 def check_disk_space(min_gb=1):
-    """ Vérifie si l'espace disque disponible est supérieur à 1 Go """
     system = platform.system()
 
     if system == "Windows":
@@ -72,7 +68,6 @@ def check_disk_space(min_gb=1):
     return free_space_gb >= min_gb
 
 def progress_hook(d, season, episode, max_episode):
-    """Affiche la progression du téléchargement"""
     if d["status"] == "downloading":
         percent = d["_percent_str"].strip()
         sys.stdout.write(f"\r🔄 [S{season} E{episode}/{max_episode}] {percent} complet")
@@ -82,7 +77,6 @@ def progress_hook(d, season, episode, max_episode):
         sys.stdout.flush()
 
 def get_download_path():
-    """Retourne le chemin de téléchargement adapté à la plateforme"""
     if platform.system() == "Windows":
         return os.path.join(os.getcwd())
     elif platform.system() == "Linux" and "ANDROID_STORAGE" in os.environ:
@@ -92,17 +86,13 @@ def get_download_path():
         exit(1)
 
 def format_url_name(name):
-    """Format URL : suppression des apostrophes, remplacement des espaces par des tirets"""
     return name.lower().replace("'", "").replace(" ", "-")
 
 def format_folder_name(name, language):
-    """Format du dossier de téléchargement"""
     capitalized_name = ' '.join(word.capitalize() for word in name.split())
     return f"{capitalized_name} {language.upper()}"
 
-
 def check_available_languages(base_url, name):
-    """Vérifie toutes les versions linguistiques disponibles"""
     all_languages = ["vf", "va", "vkr", "vcn", "vqc", "vf1", "vf2", "vf3", "vf4", "vf5"]
     available_languages = []
     for lang in all_languages:
@@ -118,12 +108,13 @@ def check_available_languages(base_url, name):
     return available_languages
 
 def check_seasons(base_url, name, language):
-    """Vérifie les saisons, films et OAVs disponibles avec des variantes de numérotation"""
     available_seasons = []
     season_info = {}
     
     season = 1
-    while True:
+    consecutive_not_found = 0
+    
+    while consecutive_not_found < 3:
         found_any = False
         
         main_url = f"{base_url}{name}/saison{season}/{language}/episodes.js"
@@ -139,16 +130,18 @@ def check_seasons(base_url, name, language):
             }
             
             found_any = True
+            consecutive_not_found = 0
         else:
-            # Si pas de saison principale, vérifier si on a des variantes
             season_info[season] = {
                 'main_url': None,
                 'variants': [],
                 'has_main': False
             }
         
-        # Vérifier toutes les variantes pour cette saison
-        for i in range(1, 11):
+        # Vérifier les variantes de 1 à l'infini avec arrêt après 3 non trouvées consécutives
+        variant_consecutive_not_found = 0
+        i = 1
+        while variant_consecutive_not_found < 3:
             variant_url = f"{base_url}{name}/saison{season}-{i}/{language}/episodes.js"
             response = requests.get(variant_url)
             
@@ -156,17 +149,20 @@ def check_seasons(base_url, name, language):
                 print(f"\u2714 Saison {season}-{i} trouvée.")
                 season_info[season]['variants'].append((i, variant_url))
                 found_any = True
+                consecutive_not_found = 0
+                variant_consecutive_not_found = 0
+            else:
+                variant_consecutive_not_found += 1
+            
+            i += 1
         
         if not found_any:
-            # Si aucune URL principale ou variante n'a été trouvée pour cette saison,
-            # on la supprime du dictionnaire et on arrête la boucle
+            consecutive_not_found += 1
             if season in season_info:
                 del season_info[season]
-            break
         
         season += 1
 
-    # Vérification des films
     film_url = f"{base_url}{name}/film/{language}/episodes.js"
     response = requests.get(film_url)
     if response.status_code == 200 and response.text.strip():
@@ -177,7 +173,6 @@ def check_seasons(base_url, name, language):
             'has_main': True
         }
     
-    # Vérification des OAVs
     oav_url = f"{base_url}{name}/oav/{language}/episodes.js"
     response = requests.get(oav_url)
     if response.status_code == 200 and response.text.strip():
@@ -188,13 +183,11 @@ def check_seasons(base_url, name, language):
             'has_main': True
         }
     
-    # Construire la liste finale des saisons à télécharger
+    # Tri et organisation des saisons avec leurs sous-parties
     for season_num, info in season_info.items():
-        # D'abord ajouter la saison principale si elle existe
         if info['has_main']:
             available_seasons.append((season_num, info['main_url'], False, 0))
         
-        # Ensuite ajouter les variantes dans l'ordre
         for variant_num, variant_url in sorted(info['variants']):
             available_seasons.append((season_num, variant_url, True, variant_num))
     
@@ -216,10 +209,10 @@ def check_http_403(url):
             print(f"⛔ Erreur de connexion : {e}")
             return False
 
-    # Après 5 tentatives infructueuses, afficher un message de bannissement
     print("⛔ Sibnet vous a temporairement banni, veuillez réessayer dans un maximum de 2 jours.")
     time.sleep(20)  # Pause de 20 secondes pour permettre à l'utilisateur de voir le message
     return True
+
 def get_anime_image(anime_name, folder_name):
     """Récupère l'image de l'anime et configure l'icône du dossier"""
     try:
@@ -281,16 +274,12 @@ Vid=
 FolderType=Generic
 """)
         
-        # Rendre les fichiers système (Windows uniquement)
         if os.name == 'nt':
             os.system(f'attrib +s "{folder_name}"')  # Dossier système
             os.system(f'attrib +h +s "{desktop_ini_path}"')  # Fichier caché et système
         
     except Exception:
-        # Silencieusement ignorer toutes les erreurs liées aux images
         pass
-
-
 
 def extract_video_links(url):
     """Extrait les liens vidéo Sibnet et Vidmoly"""
@@ -322,16 +311,15 @@ def download_video(link, filename, season, episode, max_episode):
         "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
         "merge_output_format": "mp4",
         "logger": MyLogger(),
-        "socket_timeout": 60,  # Augmenter le délai d'attente avant un timeout (en secondes)
-        "retries": 15,  # Nombre de tentatives en cas d'échec
+        "socket_timeout": 60,
+        "retries": 15,
     }
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([link])
     except Exception as e:
-        # Efface la ligne d'erreur précédente et affiche l'erreur
-        sys.stdout.write("\r")  # Efface la ligne de l'erreur précédente
+        sys.stdout.write("\r")
         sys.stdout.flush()
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
@@ -344,15 +332,12 @@ def ask_for_starting_point():
             print("➡️ Téléchargement de tous les épisodes de toutes les saisons")
             return 0, 0
         
-        # Pattern pour saisons normales: s1_e5    
         season_pattern = re.compile(r's(\d+)_e(\d+)')
         season_match = season_pattern.match(starting_point)
         
-        # Pattern pour films: film_e1
         film_pattern = re.compile(r'film_e(\d+)')
         film_match = film_pattern.match(starting_point)
         
-        # Pattern pour OAVs: oav_e1
         oav_pattern = re.compile(r'oav_e(\d+)')
         oav_match = oav_pattern.match(starting_point)
         
@@ -372,36 +357,44 @@ def ask_for_starting_point():
         else:
             print("⚠️ Format incorrect. Utilisez s<saison>_e<episode>, film_e<episode>, oav_e<episode> ou 0 pour tout")
 
+def calculate_total_episodes(seasons, selected_season=None):
+    """Calcule le nombre total d'épisodes pour une saison donnée ou toutes les saisons"""
+    total = 0
+    season_totals = {}
+    
+    for season, url, is_variant, variant_num in seasons:
+        if selected_season is not None and season != selected_season:
+            continue
+            
+        sibnet_links, vidmoly_links = extract_video_links(url)
+        episode_count = len(sibnet_links) + len(vidmoly_links)
+        
+        if season not in season_totals:
+            season_totals[season] = 0
+        season_totals[season] += episode_count
+        total += episode_count
+    
+    return total, season_totals
 
-def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode=1):
+def download_videos(sibnet_links, vidmoly_links, season, folder_name, global_episode_counter, season_episode_counter, total_episodes_in_season):
+    """Télécharge les vidéos avec une numérotation globale continue"""
     download_dir = os.path.join(get_download_path(), folder_name)
     os.makedirs(download_dir, exist_ok=True)
     
-    # Correction ici: extraire le nom complet de l'anime du dossier, pas juste le premier mot
-    anime_name = folder_name.split(" ")[:-1]  # Tout sauf le dernier élément (VF/VOSTFR)
-    anime_name = " ".join(anime_name)  # Reconstituer le nom complet
+    anime_name = folder_name.split(" ")[:-1]
+    anime_name = " ".join(anime_name)
     
-    # Appeler get_anime_image avec le nom complet
     get_anime_image(anime_name, download_dir)
 
-    total_episodes = len(sibnet_links) + len(vidmoly_links)
-    max_episode = total_episodes
-    
-    print(f"📥 Téléchargement [S{season}] : {download_dir} (à partir de l'épisode {current_episode} jusqu'à {max_episode})")
+    print(f"📥 Téléchargement [S{season}] : {download_dir}")
 
     if not (sibnet_links or vidmoly_links):
         print(f"⛔ Aucune vidéo trouvée pour la saison {season}.")
-        return
+        return global_episode_counter
 
     all_links = sibnet_links + vidmoly_links
-    if current_episode > 1:
-        if current_episode > len(all_links):
-            print(f"⛔ L'épisode de départ ({current_episode}) dépasse le nombre total d'épisodes ({len(all_links)})")
-            return
-        all_links = all_links[current_episode - 1:]
-
-    episode_counter = current_episode
-    for link in all_links:
+    
+    for i, link in enumerate(all_links):
         sys.stdout.write("🌐 Chargement")
         sys.stdout.flush()
 
@@ -416,10 +409,21 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, current_ep
         if check_http_403(link):
             continue
 
-        filename = os.path.join(download_dir, f"s{season}_e{episode_counter}.mp4")
+        filename = os.path.join(download_dir, f"s{season}_e{global_episode_counter}.mp4")
         
-        download_video(link, filename, season, episode_counter, max_episode)
-        episode_counter += 1
+        download_video(link, filename, season, global_episode_counter, total_episodes_in_season)
+        global_episode_counter += 1
+
+    return global_episode_counter
+
+def show_usage():
+    print("Usage:")
+    print("  python script.py <nom_anime> <langue>")
+    print("  python script.py -h|--help|help|/?|-?")
+    print()
+    print("Exemples:")
+    print("  python script.py \"one piece\" vf")
+    print("  python script.py \"naruto\" vostfr")
 
 def main():
     base_url = "https://anime-sama.fr/catalogue/"
@@ -451,6 +455,7 @@ def main():
         anime_name = input("Entrez le nom de l'anime : ").strip().lower()
         anime_name_capitalized = anime_name.capitalize()
         set_title(f"Co-Chan : {anime_name_capitalized}")
+    
     formatted_url_name = format_url_name(anime_name)
 
     available_vf_versions = check_available_languages(base_url, formatted_url_name)
@@ -481,79 +486,87 @@ def main():
     
     start_season, start_episode = ask_for_starting_point()
     
-    episode_counters = {}
-    last_processed = {}
+    # Calculer le total d'épisodes pour chaque saison
+    _, season_totals = calculate_total_episodes(seasons)
     
-    # Filtrer et traiter les saisons/films/OAVs en fonction du point de départ
+    # Compteur global pour la numérotation continue
+    global_episode_counter = 1
+    
+    # Organiser les saisons par numéro pour un traitement séquentiel
+    season_groups = {}
     for season, url, is_variant, variant_num in seasons:
-        # Cas 1: Toutes les saisons/films/OAVs demandés (start_season = 0)
-        if start_season == 0:
-            # Traiter tous les contenus
-            sibnet_links, vidmoly_links = extract_video_links(url)
-            if sibnet_links or vidmoly_links:
-                # Pour les films et OAVs, on n'affiche pas le numéro de saison mais le type
-                if season in ["film", "oav"]:
-                    season_display = season
-                else:
-                    season_display = season
-                download_videos(sibnet_links, vidmoly_links, season_display, folder_name, 1)
-            continue
-            
-        # Cas 2: Point de départ = film
-        elif start_season == "film":
-            # Ignorer tout ce qui n'est pas un film
-            if season != "film":
+        if season not in season_groups:
+            season_groups[season] = []
+        season_groups[season].append((url, is_variant, variant_num))
+    
+    # Traiter chaque saison dans l'ordre
+    for season_key in sorted(season_groups.keys(), key=lambda x: (str(x) if isinstance(x, str) else x)):
+        season_parts = season_groups[season_key]
+        
+        # Filtrer selon le point de départ
+        if start_season != 0:
+            if start_season == "film" and season_key != "film":
                 continue
-            sibnet_links, vidmoly_links = extract_video_links(url)
-            if sibnet_links or vidmoly_links:
-                download_videos(sibnet_links, vidmoly_links, "film", folder_name, start_episode)
-            continue
-            
-        # Cas 3: Point de départ = oav
-        elif start_season == "oav":
-            # Ignorer tout ce qui n'est pas un oav
-            if season != "oav":
+            elif start_season == "oav" and season_key != "oav":
                 continue
-            sibnet_links, vidmoly_links = extract_video_links(url)
-            if sibnet_links or vidmoly_links:
-                download_videos(sibnet_links, vidmoly_links, "oav", folder_name, start_episode)
-            continue
-            
-        # Cas 4: Point de départ = saison spécifique
-        else:
-            # Ignorer les films et OAVs car l'utilisateur a demandé une saison spécifique
-            if season in ["film", "oav"]:
+            elif isinstance(start_season, int) and season_key in ["film", "oav"]:
                 continue
-                
-            # Ignorer les saisons antérieures à celle demandée
-            if season < start_season:
-                print(f"⏭️ Saison {season} ignorée (démarre à S{start_season})")
+            elif isinstance(start_season, int) and isinstance(season_key, int) and season_key < start_season:
                 continue
-            
+        
+        total_episodes_in_season = season_totals.get(season_key, 0)
+        season_episode_counter = 1
+        
+        # Trier les parties de la saison (partie principale d'abord, puis les variantes)
+        season_parts.sort(key=lambda x: (x[1], x[2]))  # is_variant, variant_num
+        
+        for url, is_variant, variant_num in season_parts:
             sibnet_links, vidmoly_links = extract_video_links(url)
-            total_episodes = len(sibnet_links) + len(vidmoly_links)
             
             if not (sibnet_links or vidmoly_links):
-                print(f"⛔ Aucun épisode trouvé pour {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
                 continue
-                
-            current_episode = 1
             
-            # Si c'est la saison de départ, utiliser l'épisode de départ spécifié
-            if season == start_season:
-                current_episode = start_episode
+            # Appliquer le filtre de départ d'épisode seulement pour la première saison
+            current_links = sibnet_links + vidmoly_links
+            if start_season != 0 and season_key == start_season and global_episode_counter == 1:
+                if start_episode > 1:
+                    skip_episodes = start_episode - 1
+                    if skip_episodes < len(current_links):
+                        current_links = current_links[skip_episodes:]
+                        global_episode_counter += skip_episodes
+                        season_episode_counter += skip_episodes
+                    else:
+                        continue
             
-            # Pour les variantes de saison, continuer à partir du dernier épisode traité
             if is_variant:
-                if season in last_processed:
-                    current_episode = last_processed[season] + 1
+                print(f"♾️ Traitement de la Partie {variant_num} de la saison {season_key}")
+            else:
+                print(f"♾️ Traitement de la saison {season_key}")
             
-            print(f"♾️ Traitement de {'la Partie ' + str(variant_num) + ' de ' if is_variant else ''}la saison {season}")
-            print(f"🔢 Épisodes: {current_episode} à {current_episode + total_episodes - 1}")
-            
-            download_videos(sibnet_links, vidmoly_links, season, folder_name, current_episode)
-            
-            last_processed[season] = current_episode + total_episodes - 1
+            # Télécharger les épisodes de cette partie
+            for link in current_links:
+                sys.stdout.write("🌐 Chargement")
+                sys.stdout.flush()
+
+                for _ in range(3):
+                    time.sleep(1)
+                    sys.stdout.write(".")
+                    sys.stdout.flush()
+
+                sys.stdout.write("\r")
+                sys.stdout.flush()
+
+                if check_http_403(link):
+                    continue
+
+                download_dir = os.path.join(get_download_path(), folder_name)
+                os.makedirs(download_dir, exist_ok=True)
+                
+                filename = os.path.join(download_dir, f"s{season_key}_e{global_episode_counter}.mp4")
+                
+                download_video(link, filename, season_key, global_episode_counter, total_episodes_in_season)
+                global_episode_counter += 1
+                season_episode_counter += 1
 
 if __name__ == "__main__":
     main()
