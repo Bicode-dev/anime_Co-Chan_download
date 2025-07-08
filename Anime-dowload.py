@@ -416,6 +416,18 @@ def download_videos(sibnet_links, vidmoly_links, season, folder_name, global_epi
 
     return global_episode_counter
 
+
+def custom_sort_key(x):
+    """Fonction de tri personnalisée pour les clés de saison - Compatible Android/Termux"""
+    if isinstance(x, int):
+        return (0, x)  # Les saisons numériques d'abord
+    elif x == "film":
+        return (1, 0)  # Films après les saisons
+    elif x == "oav":
+        return (2, 0)  # OAV en dernier
+    else:
+        return (3, str(x))  # Autres chaînes à la fin
+
 def show_usage():
     print("Usage:")
     print("  python script.py <nom_anime> <langue>")
@@ -500,7 +512,7 @@ def main():
         season_groups[season].append((url, is_variant, variant_num))
     
     # Traiter chaque saison dans l'ordre
-    for season_key in sorted(season_groups.keys(), key=lambda x: (str(x) if isinstance(x, str) else x)):
+    for season_key in sorted(season_groups.keys(), key=custom_sort_key):
         season_parts = season_groups[season_key]
         
         # Filtrer selon le point de départ
