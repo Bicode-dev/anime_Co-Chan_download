@@ -26,3 +26,7 @@ python Anime-dowload.py naruto vostfr
 Pour afficher l'aide :
 
 python Anime-dowload.py --help` en ligne de commande ou simplement ouvrir le .py
+
+
+
+pour tout question : https://discord.gg/tv2EZEYbax
