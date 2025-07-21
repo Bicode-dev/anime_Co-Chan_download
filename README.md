@@ -29,4 +29,4 @@ python Anime-dowload.py --help` en ligne de commande ou simplement ouvrir le .py
 
 
 
-pour tout question : https://discord.gg/tv2EZEYbax
+pour tout question : [Serveur Discord](https://discord.com/invite/tv2EZEYbax)
