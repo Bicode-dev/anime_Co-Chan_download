@@ -16,13 +16,13 @@ from yt_dlp import YoutubeDL
 
 class MyLogger:
     def debug(self, msg):
-        pass 
+        pass
     
     def warning(self, msg):
         pass
     
     def error(self, msg):
-        print(msg)  # Affiche seulement les erreurs
+        print(msg)
 
 def set_title(title_text):
     s = platform.system()
@@ -36,16 +36,13 @@ def set_title(title_text):
 set_title("Co-Chan")
 
 def check_disk_space(min_gb=1):
-    """Vérifie l'espace disque disponible (minimum 1GB par défaut)"""
     s = platform.system()
     
     if s == "Windows":
-        # Vérifie l'espace sur le disque C:
         total, used, free = shutil.disk_usage("C:\\")
-        free_space_gb = free / (1024**3)  # Conversion en GB
+        free_space_gb = free / (1024**3)
         
     elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
-        # Spécifique pour Android/Termux
         try:
             output = os.popen("df -h /storage/emulated/0").read()
             lines = output.split("\n")
@@ -62,55 +59,39 @@ def check_disk_space(min_gb=1):
         except:
             free_space_gb = 0
     else:
-        # Pour les systèmes Unix/Linux classiques
         statvfs = os.statvfs("/")
         free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024**3)
     
     return free_space_gb >= min_gb
 
 def progress_hook(d, season, episode, max_episode):
-    """Affiche la progression du téléchargement avec yt-dlp"""
     if d["status"] == "downloading":
         percent = d["_percent_str"].strip()
-        # Affiche la progression en temps réel sur la même ligne
         sys.stdout.write(f"\r🔄 [S{season} E{episode}/{max_episode}] {percent} complet")
         sys.stdout.flush()
     elif d["status"] == "finished":
-        # Confirmation de fin de téléchargement
         sys.stdout.write(f"\r✅ [S{season} E{episode}/{max_episode}] Téléchargement terminé !\n")
         sys.stdout.flush()
 
 def get_download_path():
-    """Détermine le chemin de téléchargement selon l'OS"""
     if platform.system() == "Windows":
-        return os.path.join(os.getcwd())  # Répertoire courant
+        return os.path.join(os.getcwd())
     elif platform.system() == "Linux" and "ANDROID_STORAGE" in os.environ:
-        return "/storage/emulated/0/Download/anime"  # Dossier Download Android
+        return "/storage/emulated/0/Download/anime"
     else:
         print("Ce script ne fonctionne que sous Windows ou Android.")
         exit(1)
 
 def format_url_name(name):
-    """Formate le nom pour l'URL (minuscules, tirets au lieu d'espaces)"""
     return name.lower().replace("'", "").replace(" ", "-")
 
 def format_folder_name(name, language):
-    """Formate le nom du dossier avec la langue en majuscules"""
     return f"{' '.join(word.capitalize() for word in name.split())} {language.upper()}"
 
 def normalize_anime_name(name):
-    """
-    Normalise le nom de l'anime en supprimant les espaces multiples, 
-    tabulations et sauts de ligne
-    Exemple: "one      piece\n\t" devient "one piece"
-    """
     return ' '.join(name.strip().split()).lower()
 
 def check_anime_exists(base_url, formatted_url_name):
-    """
-    Vérifie si l'anime existe en testant différentes langues et types de contenu
-    Teste les saisons, films et OAV dans plusieurs langues
-    """
     test_languages = ["vf", "vostfr", "va", "vkr", "vcn", "vqc"]
     
     for lang in test_languages:
@@ -141,19 +122,16 @@ def check_anime_exists(base_url, formatted_url_name):
     return False
 
 def check_available_languages(base_url, name):
-    """Vérifie toutes les langues disponibles pour un anime donné"""
     all_languages = ["vf", "va", "vkr", "vcn", "vqc", "vf1", "vf2", "vf3", "vf4", "vf5"]
     available_languages = []
     
     for lang in all_languages:
-        # Teste à la fois les saisons et les films
         season_url = f"{base_url}{name}/saison1/{lang}/episodes.js"
         season_response = requests.get(season_url)
         
         film_url = f"{base_url}{name}/film/{lang}/episodes.js"
         film_response = requests.get(film_url)
         
-        # Si l'une des deux URL répond positivement, la langue est disponible
         if ((season_response.status_code == 200 and season_response.text.strip()) or 
             (film_response.status_code == 200 and film_response.text.strip())):
             available_languages.append(lang)
@@ -161,20 +139,14 @@ def check_available_languages(base_url, name):
     return available_languages
 
 def check_seasons(base_url, name, language):
-    """
-    Découvre toutes les saisons disponibles, leurs variantes, films et OAV
-    Retourne une liste des contenus disponibles
-    """
     available_seasons = []
     season_info = {}
     season = 1
     consecutive_not_found = 0
     
-    # Recherche des saisons principales et leurs variantes
-    while consecutive_not_found < 3:  # Arrête après 3 saisons consécutives non trouvées
+    while consecutive_not_found < 3:
         found_any = False
         
-        # Teste la saison principale
         main_url = f"{base_url}{name}/saison{season}/{language}/episodes.js"
         response = requests.get(main_url)
         
@@ -186,7 +158,6 @@ def check_seasons(base_url, name, language):
         else:
             season_info[season] = {'main_url': None, 'variants': [], 'has_main': False}
         
-        # Recherche des variantes de saison (ex: saison1-2, saison1-3, etc.)
         variant_consecutive_not_found = 0
         i = 1
         while variant_consecutive_not_found < 3:
@@ -206,25 +177,22 @@ def check_seasons(base_url, name, language):
         if not found_any:
             consecutive_not_found += 1
             if season in season_info:
-                del season_info[season]  # Supprime les saisons vides
+                del season_info[season]
         
         season += 1
     
-    # Vérification des films
     film_url = f"{base_url}{name}/film/{language}/episodes.js"
     response = requests.get(film_url)
     if response.status_code == 200 and response.text.strip():
         print(f"✔ Film trouvé.")
         season_info['film'] = {'main_url': film_url, 'variants': [], 'has_main': True}
     
-    # Vérification des OAV
     oav_url = f"{base_url}{name}/oav/{language}/episodes.js"
     response = requests.get(oav_url)
     if response.status_code == 200 and response.text.strip():
         print(f"✔ OAV trouvé.")
         season_info['oav'] = {'main_url': oav_url, 'variants': [], 'has_main': True}
     
-    # Construction de la liste finale
     for season_num, info in season_info.items():
         if info['has_main']:
             available_seasons.append((season_num, info['main_url'], False, 0))
@@ -233,6 +201,7 @@ def check_seasons(base_url, name, language):
             available_seasons.append((season_num, variant_url, True, variant_num))
     
     return available_seasons
+
 def find_last_downloaded_episode(folder_path):
     """Trouve le dernier épisode téléchargé dans le dossier"""
     if not os.path.exists(folder_path):
@@ -380,10 +349,6 @@ def ask_for_starting_point(folder_name, seasons):
             print("⚠️ Veuillez entrer des nombres valides")
 
 def check_http_403(url):
-    """
-    Vérifie si l'URL renvoie un code 403 (Interdit)
-    Implémente un système de retry en cas de bannissement temporaire
-    """
     attempts = 0
     
     while attempts < 5:
@@ -391,26 +356,21 @@ def check_http_403(url):
             response = requests.get(url, timeout=10)
             if response.status_code == 403:
                 print(f"⛔ Tentative {attempts+1} échouée : Sibnet a renvoyé un code 403. Nouvelle tentatives veuillez patienter.")
-                time.sleep(10)  # Attente avant nouvelle tentative
+                time.sleep(10)
                 attempts += 1
             else:
-                return False  # Pas de problème 403
+                return False
         except requests.exceptions.RequestException as e:
             print(f"⛔ Erreur de connexion : {e}")
             return False
     
-    # Après 5 tentatives échouées
     print("⛔ Sibnet vous a temporairement banni, veuillez réessayer dans un maximum de 2 jours.")
     time.sleep(20)
     return True
 
 def get_anime_image(anime_name, folder_name):
-    """
-    Télécharge l'image de couverture de l'anime depuis l'API Jikan (MyAnimeList)
-    Crée une icône de dossier personnalisée pour Windows
-    """
+    """Télécharge l'image de couverture depuis l'API Jikan"""
     try:
-        # Recherche de l'anime via l'API Jikan
         url_name = anime_name.replace(" ", "+")
         url = f"https://api.jikan.moe/v4/anime?q={url_name}&limit=1"
         response = requests.get(url)
@@ -418,159 +378,101 @@ def get_anime_image(anime_name, folder_name):
         data = response.json()
         
         if not data["data"]:
-            return  # Aucun résultat trouvé
+            return
         
         anime = data["data"][0]
         image_url = anime["images"]["jpg"]["large_image_url"]
         
-        # Téléchargement de l'image
         image_response = requests.get(image_url)
         image_response.raise_for_status()
         image_data = image_response.content
         
-        # Sauvegarde en tant que cover.jpg
         jpg_path = os.path.join(folder_name, "cover.jpg")
         with open(jpg_path, 'wb') as f:
             f.write(image_data)
         
-        # Création d'une icône de dossier Windows (.ico)
-        ico_path = os.path.join(folder_name, "folder.ico")
-        image = Image.open(io.BytesIO(image_data))
-        
-        # Redimensionnement en carré de 256x256 pixels
-        size = 256
-        square_img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-        width, height = image.size
-        
-        # Calcul du redimensionnement en gardant les proportions
-        if width > height:
-            new_height = int(height * size / width)
-            resized_img = image.resize((size, new_height))
-            y_offset = (size - new_height) // 2
-            square_img.paste(resized_img, (0, y_offset))
-        else:
-            new_width = int(width * size / height)
-            resized_img = image.resize((new_width, size))
-            x_offset = (size - new_width) // 2
-            square_img.paste(resized_img, (x_offset, 0))
-        
-        # Sauvegarde de l'icône
-        square_img.save(ico_path, format='ICO', sizes=[(size, size)])
-        
-        # Masquage de l'icône sur Windows
-        if os.name == 'nt':
-            os.system(f'attrib +h "{ico_path}"')
-        
-        # Création du fichier desktop.ini pour personnaliser l'icône du dossier
-        absolute_ico_path = os.path.abspath(ico_path)
-        desktop_ini_path = os.path.join(folder_name, "desktop.ini")
-        
-        with open(desktop_ini_path, "w") as ini_file:
-            ini_file.write(f"""[.ShellClassInfo]
+        if pil_available:
+            ico_path = os.path.join(folder_name, "folder.ico")
+            image = Image.open(io.BytesIO(image_data))
+            
+            size = 256
+            square_img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+            width, height = image.size
+            
+            if width > height:
+                new_height = int(height * size / width)
+                resized_img = image.resize((size, new_height))
+                y_offset = (size - new_height) // 2
+                square_img.paste(resized_img, (0, y_offset))
+            else:
+                new_width = int(width * size / height)
+                resized_img = image.resize((new_width, size))
+                x_offset = (size - new_width) // 2
+                square_img.paste(resized_img, (x_offset, 0))
+            
+            square_img.save(ico_path, format='ICO', sizes=[(size, size)])
+            
+            if os.name == 'nt':
+                os.system(f'attrib +h "{ico_path}"')
+            
+            absolute_ico_path = os.path.abspath(ico_path)
+            desktop_ini_path = os.path.join(folder_name, "desktop.ini")
+            
+            with open(desktop_ini_path, "w") as ini_file:
+                ini_file.write(f"""[.ShellClassInfo]
 IconResource={absolute_ico_path},0
 [ViewState]
 Mode=
 Vid=
 FolderType=Generic
 """)
-        
-        # Application des attributs Windows pour l'icône personnalisée
-        if os.name == 'nt':
-            os.system(f'attrib +s "{folder_name}"')  # Marque le dossier comme système
-            os.system(f'attrib +h +s "{desktop_ini_path}"')  # Masque desktop.ini
             
+            if os.name == 'nt':
+                os.system(f'attrib +s "{folder_name}"')
+                os.system(f'attrib +h +s "{desktop_ini_path}"')
+                
     except Exception:
-        pass  # Ignore silencieusement les erreurs d'image
+        pass
 
 def extract_video_links(url):
-    """
-    Extrait les liens vidéo Sibnet et Vidmoly depuis une page web
-    Utilise des expressions régulières pour trouver les liens
-    """
     response = requests.get(url)
     if response.status_code != 200:
         return [], []
     
-    # Patterns pour extraire les liens vidéo
     sibnet_pattern = r"(https://video\.sibnet\.ru/shell\.php\?videoid=\d+)"
     vidmoly_pattern = r"(https://vidmoly\.to/embed/\w+)"
     
-    # Recherche des liens dans le HTML
     sibnet_links = re.findall(sibnet_pattern, response.text)
     vidmoly_links = re.findall(vidmoly_pattern, response.text)
     
     return sibnet_links, vidmoly_links
 
 def download_video(link, filename, season, episode, max_episode):
-    """
-    Télécharge une vidéo en utilisant yt-dlp avec gestion des erreurs
-    """
-    # Vérification de l'espace disque avant téléchargement
     if not check_disk_space():
         print(f"⛔ Espace disque insuffisant. Arrêt du téléchargement pour [S{season} E{episode}/{max_episode}].")
         return
     
-    # Configuration de yt-dlp
     ydl_opts = {
-        "outtmpl": filename,  # Nom du fichier de sortie
+        "outtmpl": filename,
         "quiet": False,
-        "ignoreerrors": True,  # Continue même en cas d'erreurs
+        "ignoreerrors": True,
         "progress_hooks": [lambda d: progress_hook(d, season, episode, max_episode)],
         "no_warnings": True,
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",  # Meilleure qualité MP4
-        "merge_output_format": "mp4",  # Force la sortie en MP4
-        "logger": MyLogger(),  # Utilise notre logger personnalisé
-        "socket_timeout": 60,  # Timeout de 60 secondes
-        "retries": 15  # 15 tentatives en cas d'échec
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
+        "merge_output_format": "mp4",
+        "logger": MyLogger(),
+        "socket_timeout": 60,
+        "retries": 15
     }
     
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([link])
     except Exception as e:
-        # Nettoie l'affichage et affiche l'erreur
         sys.stdout.write("\r")
         sys.stdout.flush()
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
-
-def ask_for_starting_point():
-    """
-    Demande à l'utilisateur de spécifier un point de départ pour le téléchargement
-    Supporte les formats: s1_e5, film_e1, oav_e1 ou 0 pour tout télécharger
-    """
-    while True:
-        starting_point = input("Spécifiez un point de départ (exemple: s1_e5, film_e1, oav_e1) ou 0 pour tout télécharger: ").strip().lower()
-        
-        if starting_point == "0":
-            print("➡️ Téléchargement de tous les épisodes de toutes les saisons")
-            return 0, 0
-        
-        # Patterns pour analyser l'entrée utilisateur
-        season_pattern = re.compile(r's(\d+)_e(\d+)')
-        season_match = season_pattern.match(starting_point)
-        
-        film_pattern = re.compile(r'film_e(\d+)')
-        film_match = film_pattern.match(starting_point)
-        
-        oav_pattern = re.compile(r'oav_e(\d+)')
-        oav_match = oav_pattern.match(starting_point)
-        
-        if season_match:
-            season_num = int(season_match.group(1))
-            episode_num = int(season_match.group(2))
-            print(f"➡️ Téléchargement à partir de la saison {season_num}, épisode {episode_num}")
-            return season_num, episode_num
-        elif film_match:
-            episode_num = int(film_match.group(1))
-            print(f"➡️ Téléchargement à partir du film, épisode {episode_num}")
-            return "film", episode_num
-        elif oav_match:
-            episode_num = int(oav_match.group(1))
-            print(f"➡️ Téléchargement à partir de l'OAV, épisode {episode_num}")
-            return "oav", episode_num
-        else:
-            print("⚠️ Format incorrect. Utilisez s<saison>_e<episode>, film_e<episode>, oav_e<episode> ou 0 pour tout")
 
 def calculate_total_episodes(seasons, selected_season=None):
     total = 0
@@ -590,66 +492,17 @@ def calculate_total_episodes(seasons, selected_season=None):
     
     return total, season_totals
 
-
-def download_videos(sibnet_links, vidmoly_links, season, folder_name, global_episode_counter, season_episode_counter, total_episodes_in_season):
-    """
-    FONCTION ACTUELLEMENT INUTILISÉE - Remplacée par la logique dans main()
-    Télécharge tous les épisodes d'une saison
-    """
-    download_dir = os.path.join(get_download_path(), folder_name)
-    os.makedirs(download_dir, exist_ok=True)
-    
-    # Récupère le nom de l'anime pour l'image
-    anime_name = folder_name.split(" ")[:-1]
-    anime_name = " ".join(anime_name)
-    get_anime_image(anime_name, download_dir)
-    
-    print(f"📥 Téléchargement [S{season}] : {download_dir}")
-    
-    if not (sibnet_links or vidmoly_links):
-        print(f"⛔ Aucune vidéo trouvée pour la saison {season}.")
-        return global_episode_counter
-    
-    all_links = sibnet_links + vidmoly_links
-    
-    for i, link in enumerate(all_links):
-        # Animation de chargement
-        sys.stdout.write("🌐 Chargement")
-        sys.stdout.flush()
-        for _ in range(3):
-            time.sleep(1)
-            sys.stdout.write(".")
-            sys.stdout.flush()
-        sys.stdout.write("\r")
-        sys.stdout.flush()
-        
-        # Vérification du ban 403
-        if check_http_403(link):
-            continue
-        
-        # Téléchargement
-        filename = os.path.join(download_dir, f"s{season}_e{global_episode_counter}.mp4")
-        download_video(link, filename, season, global_episode_counter, total_episodes_in_season)
-        global_episode_counter += 1
-    
-    return global_episode_counter
-
 def custom_sort_key(x):
-    """
-    Clé de tri personnalisée pour ordonner les saisons
-    Ordre: saisons numériques, puis films, puis OAV, puis autres
-    """
     if isinstance(x, int):
-        return (0, x)  # Saisons numériques en premier
+        return (0, x)
     elif x == "film":
-        return (1, 0)  # Films en deuxième
+        return (1, 0)
     elif x == "oav":
-        return (2, 0)  # OAV en troisième
+        return (2, 0)
     else:
-        return (3, str(x))  # Autres à la fin
+        return (3, str(x))
 
 def show_usage():
-    """Affiche l'aide d'utilisation du script"""
     print("Usage:")
     print("  python script.py <nom_anime> <langue>")
     print("  python script.py -h|--help|help|/?|-?")
