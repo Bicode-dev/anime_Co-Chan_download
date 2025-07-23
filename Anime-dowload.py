@@ -242,7 +242,7 @@ def find_last_downloaded_episode(folder_path):
     
     episodes.sort(key=sort_key, reverse=True)
     return episodes[0]  # Retourne le dernier épisode
-
+    
 def get_total_episodes_for_season(seasons, target_season):
     """Récupère le nombre total d'épisodes pour une saison donnée"""
     total_episodes = 0
@@ -271,22 +271,62 @@ def count_downloaded_episodes_for_season(folder_path, target_season):
     
     return episode_count
 
+def count_downloaded_episodes_for_season(folder_path, target_season):
+    """Compte le nombre d'épisodes téléchargés pour une saison spécifique"""
+    if not os.path.exists(folder_path):
+        return 0
+    
+    files = os.listdir(folder_path)
+    count = 0
+    pattern = re.compile(r's(\w+)_e(\d+)\.mp4')
+    
+    for file in files:
+        match = pattern.match(file)
+        if match:
+            season = match.group(1)
+            if season.isdigit():
+                season = int(season)
+            
+            if season == target_season:
+                count += 1
+    
+    return count
+
+def get_actual_total_episodes_for_season(seasons, target_season):
+    """Récupère le nombre réel d'épisodes qui seront téléchargés pour une saison donnée"""
+    episode_counter = 0
+    
+    # Grouper les parties de la saison
+    season_parts = []
+    for season, url, is_variant, variant_num in seasons:
+        if season == target_season:
+            season_parts.append((url, is_variant, variant_num))
+    
+    # Trier comme dans la fonction principale
+    season_parts.sort(key=lambda x: (x[1], x[2]))
+    
+    for url, is_variant, variant_num in season_parts:
+        sibnet_links, vidmoly_links = extract_video_links(url)
+        episode_counter += len(sibnet_links) + len(vidmoly_links)
+    
+    return episode_counter
+
 def ask_for_starting_point(folder_name, seasons):
-    """Demande le point de départ avec détection automatique et vérification"""
+    """Demande le point de départ avec détection automatique et vérification corrigée"""
     download_dir = os.path.join(get_download_path(), folder_name)
     last_season, last_episode = find_last_downloaded_episode(download_dir)
     
     if last_season is not None and last_episode is not None:
         print(f"📁 Dernier épisode détecté : S{last_season} E{last_episode}")
         
-        # Compter les épisodes téléchargés pour cette saison
-        downloaded_episodes = count_downloaded_episodes_for_season(download_dir, last_season)
+        # Compter les épisodes téléchargés et le total réel pour cette saison
+        downloaded_count = count_downloaded_episodes_for_season(download_dir, last_season)
+        total_episodes_in_season = get_actual_total_episodes_for_season(seasons, last_season)
         
-        # Vérifier le nombre total d'épisodes disponibles pour cette saison
-        total_episodes_in_season = get_total_episodes_for_season(seasons, last_season)
+        print(f"📊 Épisodes téléchargés pour S{last_season}: {downloaded_count}/{total_episodes_in_season}")
         
-        if total_episodes_in_season > 0 and downloaded_episodes >= total_episodes_in_season:
-            print(f"✅ Tous les épisodes de la saison {last_season} sont déjà téléchargés ({downloaded_episodes}/{total_episodes_in_season})")
+        if total_episodes_in_season > 0 and downloaded_count >= total_episodes_in_season:
+            print(f"✅ Tous les épisodes de la saison {last_season} sont déjà téléchargés")
             
             # Vérifier s'il y a une saison suivante
             season_keys = []
@@ -331,12 +371,13 @@ def ask_for_starting_point(folder_name, seasons):
                     print("Arrêt du programme.")
                     exit(0)
         else:
-            next_episode = downloaded_episodes + 1
-            choice = input(f"Continuer à partir de S{last_season} E{next_episode} ? (o/n): ").strip().lower()
+            # Calculer le prochain épisode à partir du compteur global
+            next_episode_number = downloaded_count + 1
+            choice = input(f"Continuer à partir de l'épisode {next_episode_number} de S{last_season} ? (o/n): ").strip().lower()
             
             if choice in ['o', 'oui', 'y', 'yes', '']:
-                print(f"➡️ Reprise à partir de S{last_season} E{next_episode}")
-                return last_season, next_episode
+                print(f"➡️ Reprise à partir de S{last_season} E{next_episode_number}")
+                return last_season, next_episode_number
     
     # Si pas de détection ou refus de continuer
     choice = input("Télécharger tous les épisodes ? (o/n): ").strip().lower()
@@ -367,6 +408,8 @@ def ask_for_starting_point(folder_name, seasons):
             
         except ValueError:
             print("⚠️ Veuillez entrer des nombres valides")
+
+
 def check_http_403(url):
     attempts = 0
     
