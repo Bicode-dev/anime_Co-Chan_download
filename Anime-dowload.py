@@ -7,7 +7,6 @@ import re
 import time
 import importlib.util
 
-# Vérification de la disponibilité de PIL (Python Imaging Library)
 pil_available = importlib.util.find_spec("PIL") is not None
 if pil_available:
     from PIL import Image, ImageOps
@@ -16,28 +15,24 @@ if pil_available:
 from yt_dlp import YoutubeDL
 
 class MyLogger:
-    """Classe logger personnalisée pour yt-dlp - supprime les messages de debug et warning"""
     def debug(self, msg):
-        pass  # Ignore les messages de debug
+        pass 
     
     def warning(self, msg):
-        pass  # Ignore les messages d'avertissement
+        pass
     
     def error(self, msg):
         print(msg)  # Affiche seulement les erreurs
 
 def set_title(title_text):
-    """Définit le titre de la fenêtre de terminal selon l'OS"""
     s = platform.system()
     is_termux = s == "Linux" and "ANDROID_STORAGE" in os.environ
     
     if s == "Windows":
         os.system(f"title {title_text}")
     elif s == "Linux" and not is_termux:
-        # Séquence d'échappement ANSI pour définir le titre du terminal
         os.system(f'echo -e "\033]0;{title_text}\007"')
 
-# Définit le titre initial de l'application
 set_title("Co-Chan")
 
 def check_disk_space(min_gb=1):
@@ -119,7 +114,6 @@ def check_anime_exists(base_url, formatted_url_name):
     test_languages = ["vf", "vostfr", "va", "vkr", "vcn", "vqc"]
     
     for lang in test_languages:
-        # Test saison 1
         season_url = f"{base_url}{formatted_url_name}/saison1/{lang}/episodes.js"
         try:
             response = requests.get(season_url, timeout=5)
@@ -128,7 +122,6 @@ def check_anime_exists(base_url, formatted_url_name):
         except:
             continue
             
-        # Test film
         film_url = f"{base_url}{formatted_url_name}/film/{lang}/episodes.js"
         try:
             response = requests.get(film_url, timeout=5)
@@ -137,7 +130,6 @@ def check_anime_exists(base_url, formatted_url_name):
         except:
             continue
             
-        # Test OAV (Original Animation Video)
         oav_url = f"{base_url}{formatted_url_name}/oav/{lang}/episodes.js"
         try:
             response = requests.get(oav_url, timeout=5)
@@ -241,6 +233,151 @@ def check_seasons(base_url, name, language):
             available_seasons.append((season_num, variant_url, True, variant_num))
     
     return available_seasons
+def find_last_downloaded_episode(folder_path):
+    """Trouve le dernier épisode téléchargé dans le dossier"""
+    if not os.path.exists(folder_path):
+        return None, None
+    
+    files = os.listdir(folder_path)
+    episodes = []
+    
+    # Pattern pour matcher les fichiers d'épisodes
+    pattern = re.compile(r's(\w+)_e(\d+)\.mp4')
+    
+    for file in files:
+        match = pattern.match(file)
+        if match:
+            season = match.group(1)
+            episode = int(match.group(2))
+            
+            # Convertir les saisons numériques en int pour le tri
+            if season.isdigit():
+                season = int(season)
+            
+            episodes.append((season, episode))
+    
+    if not episodes:
+        return None, None
+    
+    # Trier les épisodes (saisons numériques d'abord, puis film, puis oav)
+    def sort_key(x):
+        season, episode = x
+        if isinstance(season, int):
+            return (0, season, episode)
+        elif season == "film":
+            return (1, 0, episode)
+        elif season == "oav":
+            return (2, 0, episode)
+        else:
+            return (3, str(season), episode)
+    
+    episodes.sort(key=sort_key, reverse=True)
+    return episodes[0]  # Retourne le dernier épisode
+
+def get_total_episodes_for_season(seasons, target_season):
+    """Récupère le nombre total d'épisodes pour une saison donnée"""
+    total_episodes = 0
+    
+    for season, url, is_variant, variant_num in seasons:
+        if season == target_season:
+            sibnet_links, vidmoly_links = extract_video_links(url)
+            total_episodes += len(sibnet_links) + len(vidmoly_links)
+    
+    return total_episodes
+
+def ask_for_starting_point(folder_name, seasons):
+    """Demande le point de départ avec détection automatique et vérification"""
+    download_dir = os.path.join(get_download_path(), folder_name)
+    last_season, last_episode = find_last_downloaded_episode(download_dir)
+    
+    if last_season is not None and last_episode is not None:
+        print(f"📁 Dernier épisode détecté : S{last_season} E{last_episode}")
+        
+        # Vérifier le nombre total d'épisodes pour cette saison
+        total_episodes_in_season = get_total_episodes_for_season(seasons, last_season)
+        
+        if total_episodes_in_season > 0 and last_episode >= total_episodes_in_season:
+            print(f"✅ Tous les épisodes de la saison {last_season} sont déjà téléchargés ({last_episode}/{total_episodes_in_season})")
+            
+            # Vérifier s'il y a une saison suivante
+            season_keys = []
+            for season, _, _, _ in seasons:
+                if season not in season_keys:
+                    season_keys.append(season)
+            
+            # Trier les saisons
+            def custom_sort_key(x):
+                if isinstance(x, int):
+                    return (0, x)
+                elif x == "film":
+                    return (1, 0)
+                elif x == "oav":
+                    return (2, 0)
+                else:
+                    return (3, str(x))
+            
+            season_keys.sort(key=custom_sort_key)
+            current_season_index = None
+            
+            try:
+                current_season_index = season_keys.index(last_season)
+            except ValueError:
+                pass
+            
+            if current_season_index is not None and current_season_index + 1 < len(season_keys):
+                next_season = season_keys[current_season_index + 1]
+                choice = input(f"Passer à la saison suivante S{next_season} E1 ? (o/n): ").strip().lower()
+                
+                if choice in ['o', 'oui', 'y', 'yes', '']:
+                    print(f"➡️ Passage à la saison suivante S{next_season} E1")
+                    return next_season, 1
+            else:
+                print("🎉 Tous les épisodes disponibles ont été téléchargés !")
+                choice = input("Recommencer depuis le début ? (o/n): ").strip().lower()
+                
+                if choice in ['o', 'oui', 'y', 'yes', '']:
+                    print("➡️ Redémarrage depuis le début")
+                    return 0, 0
+                else:
+                    print("Arrêt du programme.")
+                    exit(0)
+        else:
+            next_episode = last_episode + 1
+            choice = input(f"Continuer à partir de S{last_season} E{next_episode} ? (o/n): ").strip().lower()
+            
+            if choice in ['o', 'oui', 'y', 'yes', '']:
+                print(f"➡️ Reprise à partir de S{last_season} E{next_episode}")
+                return last_season, next_episode
+    
+    # Si pas de détection ou refus de continuer
+    choice = input("Télécharger tous les épisodes ? (o/n): ").strip().lower()
+    
+    if choice in ['o', 'oui', 'y', 'yes', '']:
+        print("➡️ Téléchargement de tous les épisodes")
+        return 0, 0
+    
+    # Demander saison et épisode spécifiques
+    while True:
+        try:
+            season_input = input("Numéro de saison (ou 'film'/'oav'): ").strip().lower()
+            
+            if season_input == "film":
+                season = "film"
+            elif season_input == "oav":
+                season = "oav"
+            elif season_input.isdigit():
+                season = int(season_input)
+            else:
+                print("⚠️ Saison invalide. Utilisez un numéro, 'film' ou 'oav'")
+                continue
+            
+            episode = int(input("Numéro d'épisode: ").strip())
+            
+            print(f"➡️ Téléchargement à partir de S{season} E{episode}")
+            return season, episode
+            
+        except ValueError:
+            print("⚠️ Veuillez entrer des nombres valides")
 
 def check_http_403(url):
     """
@@ -436,29 +573,23 @@ def ask_for_starting_point():
             print("⚠️ Format incorrect. Utilisez s<saison>_e<episode>, film_e<episode>, oav_e<episode> ou 0 pour tout")
 
 def calculate_total_episodes(seasons, selected_season=None):
-    """
-    Calcule le nombre total d'épisodes pour toutes les saisons ou une saison spécifique
-    Retourne aussi un dictionnaire avec le total par saison
-    """
     total = 0
     season_totals = {}
     
     for season, url, is_variant, variant_num in seasons:
-        # Si une saison spécifique est sélectionnée, ignore les autres
         if selected_season is not None and season != selected_season:
             continue
         
-        # Extrait les liens pour compter les épisodes
         sibnet_links, vidmoly_links = extract_video_links(url)
         episode_count = len(sibnet_links) + len(vidmoly_links)
         
-        # Accumule par saison
         if season not in season_totals:
             season_totals[season] = 0
         season_totals[season] += episode_count
         total += episode_count
     
     return total, season_totals
+
 
 def download_videos(sibnet_links, vidmoly_links, season, folder_name, global_episode_counter, season_episode_counter, total_episodes_in_season):
     """
@@ -528,23 +659,19 @@ def show_usage():
     print("  python script.py \"naruto\" vostfr")
 
 def main():
-    """Fonction principale du programme"""
     base_url = "https://anime-sama.fr/catalogue/"
     
-    # Gestion des arguments en ligne de commande
     if len(sys.argv) > 1:
         if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "-?"]:
             show_usage()
             return
         
         if len(sys.argv) == 3:
-            # Mode avec arguments: nom + langue
             anime_name = normalize_anime_name(sys.argv[1])
             language_input = sys.argv[2].strip().lower()
             anime_name_capitalized = anime_name.title()
             set_title(f"Co-Chan : {anime_name_capitalized}")
             
-            # Conversion des langues communes
             if language_input == "vf":
                 language_choice = "1"
             elif language_input == "vostfr":
@@ -558,17 +685,15 @@ def main():
             show_usage()
             return
     else:
-        # Mode interactif: demande à l'utilisateur
         anime_name = normalize_anime_name(input("Entrez le nom de l'anime : "))
         anime_name_capitalized = anime_name.title()
         set_title(f"Co-Chan : {anime_name_capitalized}")
     
     formatted_url_name = format_url_name(anime_name)
     
-    # Vérification de l'existence de l'anime
     print(f"🔍 Vérification de l'existence de '{anime_name_capitalized}'...")
     if not check_anime_exists(base_url, formatted_url_name):
-        print(f"❌ L'anime '{anime_name_capitalized}' n'existe pas ou essayez avec le nom en japonais. ")
+        print(f"❌ L'anime '{anime_name_capitalized}' n'existe pas ou essayez avec le nom en japonais.")
         print("   Ni en version française (VF), ni en version sous-titrée (VOSTFR).")
         print("   Vérifiez l'orthographe ou essayez avec un autre nom.")
         print("\n⏰ Fermeture automatique dans 5 secondes...")
@@ -577,7 +702,6 @@ def main():
     
     print(f"✅ Anime '{anime_name_capitalized}' trouvé !")
     
-    # Vérification des langues disponibles
     available_vf_versions = check_available_languages(base_url, formatted_url_name)
     
     if available_vf_versions:
@@ -597,34 +721,28 @@ def main():
     
     folder_name = format_folder_name(anime_name_capitalized, selected_language)
     
-    # Vérification de l'espace disque
     if not check_disk_space():
         print("⛔ Espace disque insuffisant. Libérez de l'espace et réessayez.")
         exit(1)
     
-    # Découverte des saisons/films/OAV disponibles
     seasons = check_seasons(base_url, formatted_url_name, selected_language)
     
-    # Demande du point de départ
-    start_season, start_episode = ask_for_starting_point()
+    # Fonction modifiée avec passage des seasons
+    start_season, start_episode = ask_for_starting_point(folder_name, seasons)
     
-    # Calcul du total des épisodes
     _, season_totals = calculate_total_episodes(seasons)
     
     global_episode_counter = 1
     
-    # Groupement des saisons et variantes
     season_groups = {}
     for season, url, is_variant, variant_num in seasons:
         if season not in season_groups:
             season_groups[season] = []
         season_groups[season].append((url, is_variant, variant_num))
     
-    # Traitement de chaque saison dans l'ordre
     for season_key in sorted(season_groups.keys(), key=custom_sort_key):
         season_parts = season_groups[season_key]
         
-        # Filtrage selon le point de départ demandé
         if start_season != 0:
             if start_season == "film" and season_key != "film":
                 continue
@@ -638,10 +756,8 @@ def main():
         total_episodes_in_season = season_totals.get(season_key, 0)
         season_episode_counter = 1
         
-        # Tri des parties de saison (principale puis variantes)
         season_parts.sort(key=lambda x: (x[1], x[2]))
         
-        # Traitement de chaque partie de saison
         for url, is_variant, variant_num in season_parts:
             sibnet_links, vidmoly_links = extract_video_links(url)
             
@@ -650,28 +766,22 @@ def main():
             
             current_links = sibnet_links + vidmoly_links
             
-            # Gestion du point de départ spécifique
             if start_season != 0 and season_key == start_season and global_episode_counter == 1:
                 if start_episode > 1:
                     skip_episodes = start_episode - 1
                     if skip_episodes < len(current_links):
-                        # Saute les épisodes précédents
                         current_links = current_links[skip_episodes:]
                         global_episode_counter += skip_episodes
                         season_episode_counter += skip_episodes
                     else:
-                        # Tous les épisodes de cette partie sont à ignorer
                         continue
             
-            # Affichage du traitement en cours
             if is_variant:
                 print(f"♾️ Traitement de la Partie {variant_num} de la saison {season_key}")
             else:
                 print(f"♾️ Traitement de la saison {season_key}")
             
-            # Téléchargement de chaque épisode
             for link in current_links:
-                # Animation de chargement avec points
                 sys.stdout.write("🌐 Chargement")
                 sys.stdout.flush()
                 for _ in range(3):
@@ -681,24 +791,22 @@ def main():
                 sys.stdout.write("\r")
                 sys.stdout.flush()
                 
-                # Vérification du statut 403 (bannissement temporaire)
                 if check_http_403(link):
                     continue
                 
-                # Création du dossier de téléchargement
                 download_dir = os.path.join(get_download_path(), folder_name)
                 os.makedirs(download_dir, exist_ok=True)
                 
-                # Nom du fichier final
+                # Téléchargement de l'image seulement au premier épisode
+                if global_episode_counter == 1 or (start_episode > 1 and season_episode_counter == start_episode):
+                    get_anime_image(anime_name_capitalized, download_dir)
+                
                 filename = os.path.join(download_dir, f"s{season_key}_e{global_episode_counter}.mp4")
                 
-                # Lancement du téléchargement
                 download_video(link, filename, season_key, global_episode_counter, total_episodes_in_season)
                 
-                # Incrémentation des compteurs
                 global_episode_counter += 1
                 season_episode_counter += 1
 
-# Point d'entrée du programme
 if __name__ == "__main__":
     main()
