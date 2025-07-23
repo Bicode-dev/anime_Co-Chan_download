@@ -20,7 +20,7 @@ pip install -U yt-dlp
 
 # Télécharger le fichier Python Anime-dowload-termux.py depuis GitHub
 echo "Téléchargement du fichier Anime-dowload-termux.py depuis GitHub..."
-curl -L -o ~/Anime-dowload-termux.py https://raw.githubusercontent.com/les-developpeur/anime-soma/refs/heads/main/Anime-dowload.py
+curl -L -o ~/Anime-dowload-termux.py https://raw.githubusercontent.com/Bicode-dev/anime-soma/refs/heads/main/Anime-dowload.py
 
 # Créer le répertoire de raccourcis s'il n'existe pas
 mkdir -p ~/.shortcuts
