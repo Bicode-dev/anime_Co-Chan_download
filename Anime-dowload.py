@@ -371,13 +371,12 @@ def ask_for_starting_point(folder_name, seasons):
                     print("Arrêt du programme.")
                     exit(0)
         else:
-            # Calculer le prochain épisode à partir du compteur global
-            next_episode_number = downloaded_count + 1
-            choice = input(f"Continuer à partir de l'épisode {next_episode_number} de S{last_season} ? (o/n): ").strip().lower()
+            # MODIFICATION: Reprendre en retéléchargeant le dernier épisode
+            choice = input(f"Continuer en retéléchargeant le dernier épisode S{last_season} E{last_episode} ? (o/n): ").strip().lower()
             
             if choice in ['o', 'oui', 'y', 'yes', '']:
-                print(f"➡️ Reprise à partir de S{last_season} E{next_episode_number}")
-                return last_season, next_episode_number
+                print(f"➡️ Reprise à partir de S{last_season} E{last_episode} (retéléchargement)")
+                return last_season, last_episode
     
     # Si pas de détection ou refus de continuer
     choice = input("Télécharger tous les épisodes ? (o/n): ").strip().lower()
@@ -408,8 +407,7 @@ def ask_for_starting_point(folder_name, seasons):
             
         except ValueError:
             print("⚠️ Veuillez entrer des nombres valides")
-
-
+            
 def check_http_403(url):
     attempts = 0
     
