@@ -254,6 +254,23 @@ def get_total_episodes_for_season(seasons, target_season):
     
     return total_episodes
 
+def count_downloaded_episodes_for_season(folder_path, target_season):
+    """Compte le nombre d'épisodes téléchargés pour une saison spécifique"""
+    if not os.path.exists(folder_path):
+        return 0
+    
+    files = os.listdir(folder_path)
+    episode_count = 0
+    
+    # Pattern pour matcher les fichiers d'épisodes de la saison cible
+    pattern = re.compile(rf's{re.escape(str(target_season))}_e(\d+)\.mp4')
+    
+    for file in files:
+        if pattern.match(file):
+            episode_count += 1
+    
+    return episode_count
+
 def ask_for_starting_point(folder_name, seasons):
     """Demande le point de départ avec détection automatique et vérification"""
     download_dir = os.path.join(get_download_path(), folder_name)
@@ -262,11 +279,14 @@ def ask_for_starting_point(folder_name, seasons):
     if last_season is not None and last_episode is not None:
         print(f"📁 Dernier épisode détecté : S{last_season} E{last_episode}")
         
-        # Vérifier le nombre total d'épisodes pour cette saison
+        # Compter les épisodes téléchargés pour cette saison
+        downloaded_episodes = count_downloaded_episodes_for_season(download_dir, last_season)
+        
+        # Vérifier le nombre total d'épisodes disponibles pour cette saison
         total_episodes_in_season = get_total_episodes_for_season(seasons, last_season)
         
-        if total_episodes_in_season > 0 and last_episode >= total_episodes_in_season:
-            print(f"✅ Tous les épisodes de la saison {last_season} sont déjà téléchargés ({last_episode}/{total_episodes_in_season})")
+        if total_episodes_in_season > 0 and downloaded_episodes >= total_episodes_in_season:
+            print(f"✅ Tous les épisodes de la saison {last_season} sont déjà téléchargés ({downloaded_episodes}/{total_episodes_in_season})")
             
             # Vérifier s'il y a une saison suivante
             season_keys = []
@@ -311,7 +331,7 @@ def ask_for_starting_point(folder_name, seasons):
                     print("Arrêt du programme.")
                     exit(0)
         else:
-            next_episode = last_episode + 1
+            next_episode = downloaded_episodes + 1
             choice = input(f"Continuer à partir de S{last_season} E{next_episode} ? (o/n): ").strip().lower()
             
             if choice in ['o', 'oui', 'y', 'yes', '']:
@@ -347,7 +367,6 @@ def ask_for_starting_point(folder_name, seasons):
             
         except ValueError:
             print("⚠️ Veuillez entrer des nombres valides")
-
 def check_http_403(url):
     attempts = 0
     
