@@ -76,9 +76,9 @@ cls
 echo [INFO] Telechargement des fichiers depuis GitHub...
 
 :: Definition des URLs
-set URL_SCRIPT=https://raw.githubusercontent.com/les-developpeur/anime-soma/main/Anime-dowload.py
+set URL_SCRIPT=https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Anime-dowload.py
 set FILE_SCRIPT=anime-dowload.py
-set URL_GUI=https://raw.githubusercontent.com/les-developpeur/anime-soma/main/gui_windows.pyw
+set URL_GUI=https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/gui_windows.pyw
 set FILE_GUI=gui_windows-30%%-moin-rapide-mais-plus-beau.pyw
 
 :: Telecharger les fichiers
