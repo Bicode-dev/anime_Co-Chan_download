@@ -39,7 +39,9 @@ def check_disk_space(min_gb=1):
     s = platform.system()
     
     if s == "Windows":
-        total, used, free = shutil.disk_usage("C:\\")
+        # Obtenir le répertoire où se trouve le script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        total, used, free = shutil.disk_usage(script_dir)
         free_space_gb = free / (1024**3)
         
     elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
@@ -59,11 +61,11 @@ def check_disk_space(min_gb=1):
         except:
             free_space_gb = 0
     else:
-        statvfs = os.statvfs("/")
+        # Pour Linux/Unix, utiliser le répertoire courant
+        statvfs = os.statvfs(".")
         free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024**3)
     
     return free_space_gb >= min_gb
-
 def progress_hook(d, season, episode, max_episode):
     if d["status"] == "downloading":
         percent = d["_percent_str"].strip()
