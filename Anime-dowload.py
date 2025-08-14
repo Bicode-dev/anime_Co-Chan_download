@@ -39,9 +39,7 @@ def check_disk_space(min_gb=1):
     s = platform.system()
     
     if s == "Windows":
-        # Obtenir le répertoire où se trouve le script
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        total, used, free = shutil.disk_usage(script_dir)
+        total, used, free = shutil.disk_usage("C:\\")
         free_space_gb = free / (1024**3)
         
     elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
@@ -61,11 +59,11 @@ def check_disk_space(min_gb=1):
         except:
             free_space_gb = 0
     else:
-        # Pour Linux/Unix, utiliser le répertoire courant
-        statvfs = os.statvfs(".")
+        statvfs = os.statvfs("/")
         free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024**3)
     
     return free_space_gb >= min_gb
+
 def progress_hook(d, season, episode, max_episode):
     if d["status"] == "downloading":
         percent = d["_percent_str"].strip()
@@ -255,23 +253,6 @@ def get_total_episodes_for_season(seasons, target_season):
             total_episodes += len(sibnet_links) + len(vidmoly_links)
     
     return total_episodes
-
-def count_downloaded_episodes_for_season(folder_path, target_season):
-    """Compte le nombre d'épisodes téléchargés pour une saison spécifique"""
-    if not os.path.exists(folder_path):
-        return 0
-    
-    files = os.listdir(folder_path)
-    episode_count = 0
-    
-    # Pattern pour matcher les fichiers d'épisodes de la saison cible
-    pattern = re.compile(rf's{re.escape(str(target_season))}_e(\d+)\.mp4')
-    
-    for file in files:
-        if pattern.match(file):
-            episode_count += 1
-    
-    return episode_count
 
 def count_downloaded_episodes_for_season(folder_path, target_season):
     """Compte le nombre d'épisodes téléchargés pour une saison spécifique"""
@@ -647,7 +628,7 @@ def main():
     
     _, season_totals = calculate_total_episodes(seasons)
     
-    global_episode_counter = 1
+    # SUPPRESSION DE global_episode_counter (c'était le problème !)
     
     season_groups = {}
     for season, url, is_variant, variant_num in seasons:
@@ -669,6 +650,8 @@ def main():
                 continue
         
         total_episodes_in_season = season_totals.get(season_key, 0)
+        
+        # NOUVEAU: Compteur d'épisodes spécifique à chaque saison
         season_episode_counter = 1
         
         season_parts.sort(key=lambda x: (x[1], x[2]))
@@ -681,14 +664,15 @@ def main():
             
             current_links = sibnet_links + vidmoly_links
             
-            if start_season != 0 and season_key == start_season and global_episode_counter == 1:
+            # CORRECTION: Gérer le démarrage au bon épisode pour la bonne saison
+            if start_season != 0 and season_key == start_season:
                 if start_episode > 1:
                     skip_episodes = start_episode - 1
                     if skip_episodes < len(current_links):
                         current_links = current_links[skip_episodes:]
-                        global_episode_counter += skip_episodes
-                        season_episode_counter += skip_episodes
+                        season_episode_counter = start_episode
                     else:
+                        season_episode_counter += len(current_links)
                         continue
             
             if is_variant:
@@ -712,15 +696,16 @@ def main():
                 download_dir = os.path.join(get_download_path(), folder_name)
                 os.makedirs(download_dir, exist_ok=True)
                 
-                # Téléchargement de l'image seulement au premier épisode
-                if global_episode_counter == 1 or (start_episode > 1 and season_episode_counter == start_episode):
+                # Téléchargement de l'image seulement au premier épisode de la première saison
+                if season_episode_counter == 1 and season_key == sorted(season_groups.keys(), key=custom_sort_key)[0]:
                     get_anime_image(anime_name_capitalized, download_dir)
                 
-                filename = os.path.join(download_dir, f"s{season_key}_e{global_episode_counter}.mp4")
+                # CORRECTION: Utiliser season_episode_counter au lieu de global_episode_counter
+                filename = os.path.join(download_dir, f"s{season_key}_e{season_episode_counter}.mp4")
                 
-                download_video(link, filename, season_key, global_episode_counter, total_episodes_in_season)
+                download_video(link, filename, season_key, season_episode_counter, total_episodes_in_season)
                 
-                global_episode_counter += 1
+                # CORRECTION: Incrémenter seulement le compteur de la saison
                 season_episode_counter += 1
 
 if __name__ == "__main__":
