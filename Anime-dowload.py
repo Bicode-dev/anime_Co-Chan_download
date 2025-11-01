@@ -554,8 +554,29 @@ def show_usage():
     print("  python script.py \"one piece\" vf")
     print("  python script.py \"naruto\" vostfr")
 
+def get_working_base_url():
+    sites = [
+        "https://anime-sama.fr/",
+        "https://anime-sama.org/"
+    ]
+    
+    for site in sites:
+        try:
+            response = requests.head(site, timeout=5)
+            if response.status_code == 200:
+                return site + "catalogue/"
+        except:
+            pass
+    
+    return None
+
 def main():
-    base_url = "https://anime-sama.fr/catalogue/"
+    base_url = get_working_base_url()
+    
+    if base_url is None:
+        print("Co-Chan temporairement indisponible")
+        time.sleep(5)
+        exit(1)
     
     if len(sys.argv) > 1:
         if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "-?"]:
