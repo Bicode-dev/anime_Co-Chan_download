@@ -77,7 +77,6 @@ def check_domain_availability():
     
     print("❌")
     print("❌ Co-Chan temporairement indisponible")
-    print("   Les deux domaines (anime-sama.fr et anime-sama.org) sont inaccessibles.")
     print("\n⏰ Fermeture automatique dans 10 secondes...")
     time.sleep(10)
     exit(1)
