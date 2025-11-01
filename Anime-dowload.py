@@ -35,11 +35,68 @@ def set_title(title_text):
 
 set_title("Co-Chan")
 
+def ping_domain(domain):
+    """Ping un domaine pour vérifier s'il est joignable"""
+    try:
+        if platform.system() == "Windows":
+            result = os.system(f"ping -n 1 -w 1000 {domain} >nul 2>&1")
+        else:
+            result = os.system(f"ping -c 1 -W 1 {domain} >/dev/null 2>&1")
+        return result == 0
+    except:
+        return False
+
+def check_domain_availability():
+    """Vérifie la disponibilité des domaines anime-sama.fr et anime-sama.org"""
+    domains = [
+        ("anime-sama.fr", "https://anime-sama.fr/catalogue/"),
+        ("anime-sama.org", "https://anime-sama.org/catalogue/")
+    ]
+    
+    print("🔍 Vérification des serveurs...", end=" ")
+    sys.stdout.flush()
+    
+    for domain_name, full_url in domains:
+        ping_ok = ping_domain(domain_name)
+        
+        if ping_ok:
+            print("✅ Réponse")
+            return full_url
+        
+        # Test HTTP si le ping échoue
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            response = requests.get(full_url, timeout=10, headers=headers)
+            if response.status_code == 200:
+                print("✅ Réponse")
+                return full_url
+        except:
+            pass
+    
+    print("❌")
+    print("❌ Co-Chan temporairement indisponible")
+    print("   Les deux domaines (anime-sama.fr et anime-sama.org) sont inaccessibles.")
+    print("\n⏰ Fermeture automatique dans 10 secondes...")
+    time.sleep(10)
+    exit(1)
+
 def check_disk_space(min_gb=1):
     s = platform.system()
     
     if s == "Windows":
-        total, used, free = shutil.disk_usage("C:\\")
+        # Vérifier le disque C: (minimum 100 Mo)
+        total_c, used_c, free_c = shutil.disk_usage("C:\\")
+        free_space_c_mb = free_c / (1024**2)
+        
+        if free_space_c_mb < 100:
+            print(f"⚠️ Espace insuffisant sur C: ({free_space_c_mb:.0f} Mo disponibles, 100 Mo requis)")
+            return False
+        
+        # Vérifier le disque où se trouve le code (minimum 1 Go)
+        current_drive = os.path.splitdrive(os.getcwd())[0] + "\\"
+        total, used, free = shutil.disk_usage(current_drive)
         free_space_gb = free / (1024**3)
         
     elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
@@ -210,7 +267,6 @@ def find_last_downloaded_episode(folder_path):
     files = os.listdir(folder_path)
     episodes = []
     
-    # Pattern pour matcher les fichiers d'épisodes
     pattern = re.compile(r's(\w+)_e(\d+)\.mp4')
     
     for file in files:
@@ -219,7 +275,6 @@ def find_last_downloaded_episode(folder_path):
             season = match.group(1)
             episode = int(match.group(2))
             
-            # Convertir les saisons numériques en int pour le tri
             if season.isdigit():
                 season = int(season)
             
@@ -228,7 +283,6 @@ def find_last_downloaded_episode(folder_path):
     if not episodes:
         return None, None
     
-    # Trier les épisodes (saisons numériques d'abord, puis film, puis oav)
     def sort_key(x):
         season, episode = x
         if isinstance(season, int):
@@ -241,7 +295,7 @@ def find_last_downloaded_episode(folder_path):
             return (3, str(season), episode)
     
     episodes.sort(key=sort_key, reverse=True)
-    return episodes[0]  # Retourne le dernier épisode
+    return episodes[0]
     
 def get_total_episodes_for_season(seasons, target_season):
     """Récupère le nombre total d'épisodes pour une saison donnée"""
@@ -279,13 +333,11 @@ def get_actual_total_episodes_for_season(seasons, target_season):
     """Récupère le nombre réel d'épisodes qui seront téléchargés pour une saison donnée"""
     episode_counter = 0
     
-    # Grouper les parties de la saison
     season_parts = []
     for season, url, is_variant, variant_num in seasons:
         if season == target_season:
             season_parts.append((url, is_variant, variant_num))
     
-    # Trier comme dans la fonction principale
     season_parts.sort(key=lambda x: (x[1], x[2]))
     
     for url, is_variant, variant_num in season_parts:
@@ -302,7 +354,6 @@ def ask_for_starting_point(folder_name, seasons):
     if last_season is not None and last_episode is not None:
         print(f"📁 Dernier épisode détecté : S{last_season} E{last_episode}")
         
-        # Compter les épisodes téléchargés et le total réel pour cette saison
         downloaded_count = count_downloaded_episodes_for_season(download_dir, last_season)
         total_episodes_in_season = get_actual_total_episodes_for_season(seasons, last_season)
         
@@ -311,13 +362,11 @@ def ask_for_starting_point(folder_name, seasons):
         if total_episodes_in_season > 0 and downloaded_count >= total_episodes_in_season:
             print(f"✅ Tous les épisodes de la saison {last_season} sont déjà téléchargés")
             
-            # Vérifier s'il y a une saison suivante
             season_keys = []
             for season, _, _, _ in seasons:
                 if season not in season_keys:
                     season_keys.append(season)
             
-            # Trier les saisons
             def custom_sort_key(x):
                 if isinstance(x, int):
                     return (0, x)
@@ -354,21 +403,18 @@ def ask_for_starting_point(folder_name, seasons):
                     print("Arrêt du programme.")
                     exit(0)
         else:
-            # MODIFICATION: Reprendre en retéléchargeant le dernier épisode
             choice = input(f"Continuer en retéléchargeant le dernier épisode S{last_season} E{last_episode} ? (o/n): ").strip().lower()
             
             if choice in ['o', 'oui', 'y', 'yes', '']:
                 print(f"➡️ Reprise à partir de S{last_season} E{last_episode} (retéléchargement)")
                 return last_season, last_episode
     
-    # Si pas de détection ou refus de continuer
     choice = input("Télécharger tous les épisodes ? (o/n): ").strip().lower()
     
     if choice in ['o', 'oui', 'y', 'yes', '']:
         print("➡️ Téléchargement de tous les épisodes")
         return 0, 0
     
-    # Demander saison et épisode spécifiques
     while True:
         try:
             season_input = input("Numéro de saison (ou 'film'/'oav'): ").strip().lower()
@@ -554,29 +600,9 @@ def show_usage():
     print("  python script.py \"one piece\" vf")
     print("  python script.py \"naruto\" vostfr")
 
-def get_working_base_url():
-    sites = [
-        "https://anime-sama.fr/",
-        "https://anime-sama.org/"
-    ]
-    
-    for site in sites:
-        try:
-            response = requests.head(site, timeout=5)
-            if response.status_code == 200:
-                return site + "catalogue/"
-        except:
-            pass
-    
-    return None
-
 def main():
-    base_url = get_working_base_url()
-    
-    if base_url is None:
-        print("Co-Chan temporairement indisponible")
-        time.sleep(5)
-        exit(1)
+    # Vérification de la disponibilité des domaines
+    base_url = check_domain_availability()
     
     if len(sys.argv) > 1:
         if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "-?"]:
@@ -644,12 +670,9 @@ def main():
     
     seasons = check_seasons(base_url, formatted_url_name, selected_language)
     
-    # Fonction modifiée avec passage des seasons
     start_season, start_episode = ask_for_starting_point(folder_name, seasons)
     
     _, season_totals = calculate_total_episodes(seasons)
-    
-    # SUPPRESSION DE global_episode_counter (c'était le problème !)
     
     season_groups = {}
     for season, url, is_variant, variant_num in seasons:
@@ -672,7 +695,6 @@ def main():
         
         total_episodes_in_season = season_totals.get(season_key, 0)
         
-        # NOUVEAU: Compteur d'épisodes spécifique à chaque saison
         season_episode_counter = 1
         
         season_parts.sort(key=lambda x: (x[1], x[2]))
@@ -685,7 +707,6 @@ def main():
             
             current_links = sibnet_links + vidmoly_links
             
-            # CORRECTION: Gérer le démarrage au bon épisode pour la bonne saison
             if start_season != 0 and season_key == start_season:
                 if start_episode > 1:
                     skip_episodes = start_episode - 1
@@ -717,16 +738,13 @@ def main():
                 download_dir = os.path.join(get_download_path(), folder_name)
                 os.makedirs(download_dir, exist_ok=True)
                 
-                # Téléchargement de l'image seulement au premier épisode de la première saison
                 if season_episode_counter == 1 and season_key == sorted(season_groups.keys(), key=custom_sort_key)[0]:
                     get_anime_image(anime_name_capitalized, download_dir)
                 
-                # CORRECTION: Utiliser season_episode_counter au lieu de global_episode_counter
                 filename = os.path.join(download_dir, f"s{season_key}_e{season_episode_counter}.mp4")
                 
                 download_video(link, filename, season_key, season_episode_counter, total_episodes_in_season)
                 
-                # CORRECTION: Incrémenter seulement le compteur de la saison
                 season_episode_counter += 1
 
 if __name__ == "__main__":
