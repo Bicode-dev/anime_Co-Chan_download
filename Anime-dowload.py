@@ -195,68 +195,109 @@ def check_available_languages(base_url, name):
     return available_languages
 
 def check_seasons(base_url, name, language):
-    available_seasons = []
-    season_info = {}
+    """Détecte toutes les saisons (normales + HS) et propose un choix si les deux existent"""
+    season_info = {}  # clé = "1", "1hs", "2", "2hs", etc.
     season = 1
     consecutive_not_found = 0
-    
+
     while consecutive_not_found < 3:
-        found_any = False
-        
-        main_url = f"{base_url}{name}/saison{season}/{language}/episodes.js"
-        response = requests.get(main_url)
-        
-        if response.status_code == 200 and response.text.strip():
-            print(f"✔ Saison {season} trouvée.")
-            season_info[season] = {'main_url': main_url, 'variants': [], 'has_main': True}
-            found_any = True
+        found_this_round = False
+
+        # --- Saison normale ---
+        normal_url = f"{base_url}{name}/saison{season}/{language}/episodes.js"
+        normal_resp = requests.get(normal_url, timeout=10)
+        has_normal = normal_resp.status_code == 200 and normal_resp.text.strip()
+
+        # --- Saison HS ---
+        hs_url = f"{base_url}{name}/saison{season}hs/{language}/episodes.js"
+        hs_resp = requests.get(hs_url, timeout=10)
+        has_hs = hs_resp.status_code == 200 and hs_resp.text.strip()
+
+        if has_normal or has_hs:
+            found_this_round = True
             consecutive_not_found = 0
-        else:
-            season_info[season] = {'main_url': None, 'variants': [], 'has_main': False}
-        
-        variant_consecutive_not_found = 0
-        i = 1
-        while variant_consecutive_not_found < 3:
-            variant_url = f"{base_url}{name}/saison{season}-{i}/{language}/episodes.js"
-            response = requests.get(variant_url)
-            
-            if response.status_code == 200 and response.text.strip():
-                print(f"✔ Saison {season}-{i} trouvée.")
-                season_info[season]['variants'].append((i, variant_url))
-                found_any = True
-                consecutive_not_found = 0
-                variant_consecutive_not_found = 0
+
+            # Cas 1 : les deux existent → on va demander plus tard à l'utilisateur
+            if has_normal and has_hs:
+                print(f"✔ Saison {season} (Normal + HS) trouvée → choix requis")
+                season_info[f"{season}"] = {"type": "both", "normal": normal_url, "hs": hs_url, "variants": []}
+            # Cas 2 : seulement normale
+            elif has_normal:
+                print(f"✔ Saison {season} trouvée.")
+                season_info[f"{season}"] = {"type": "normal", "url": normal_url, "variants": []}
+            # Cas 3 : seulement HS
             else:
-                variant_consecutive_not_found += 1
-            i += 1
-        
-        if not found_any:
+                print(f"✔ Saison {season} HS trouvée.")
+                season_info[f"{season}hs"] = {"type": "hs", "url": hs_url, "variants": []}
+
+            # Variantes (ex: saison1-1, saison1hs-1, etc.)
+            for base_key, base_url_var in [(f"{season}", normal_url if has_normal else None), (f"{season}hs", hs_url if has_hs else None)]:
+                if base_url_var is None:
+                    continue
+                i = 1
+                variant_not_found = 0
+                while variant_not_found < 3:
+                    variant_suffix = 'hs' if 'hs' in base_key else ''
+                    variant_url = f"{base_url}{name}/saison{season}{variant_suffix}-{i}/{language}/episodes.js"
+                    r = requests.get(variant_url, timeout=10)
+                    if r.status_code == 200 and r.text.strip():
+                        season_info[base_key]["variants"].append((i, variant_url))
+                        print(f"   → Variante {season}{variant_suffix}-{i} trouvée")
+                        variant_not_found = 0
+                    else:
+                        variant_not_found += 1
+                    i += 1
+        else:
             consecutive_not_found += 1
-            if season in season_info:
-                del season_info[season]
-        
+
         season += 1
-    
-    film_url = f"{base_url}{name}/film/{language}/episodes.js"
-    response = requests.get(film_url)
-    if response.status_code == 200 and response.text.strip():
-        print(f"✔ Film trouvé.")
-        season_info['film'] = {'main_url': film_url, 'variants': [], 'has_main': True}
-    
-    oav_url = f"{base_url}{name}/oav/{language}/episodes.js"
-    response = requests.get(oav_url)
-    if response.status_code == 200 and response.text.strip():
-        print(f"✔ OAV trouvé.")
-        season_info['oav'] = {'main_url': oav_url, 'variants': [], 'has_main': True}
-    
-    for season_num, info in season_info.items():
-        if info['has_main']:
-            available_seasons.append((season_num, info['main_url'], False, 0))
-        
-        for variant_num, variant_url in sorted(info['variants']):
-            available_seasons.append((season_num, variant_url, True, variant_num))
-    
-    return available_seasons
+
+    # Film & OAV (inchangés)
+    for special, label in [("film", "Film"), ("oav", "OAV")]:
+        url = f"{base_url}{name}/{special}/{language}/episodes.js"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200 and r.text.strip():
+            print(f"✔ {label} trouvé.")
+            season_info[special] = {"type": special, "url": url, "variants": []}
+
+    return season_info  # ← on retourne maintenant un dict plus riche
+
+def resolve_season_choices(season_info):
+    """Si une saison a Normal + HS, on demande à l'utilisateur laquelle il veut"""
+    final_seasons = []  # (display_name, url_list)
+
+    for key, info in sorted(season_info.items(), key=lambda x: custom_sort_key(x[0])):
+        if info["type"] == "both":
+            print(f"\nPour la Saison {key}:")
+            print("1. Version Normale")
+            print("2. Version HS")
+            choix = ""
+            while choix not in ["1", "2"]:
+                choix = input("Choisissez 1 ou 2 : ").strip()
+            if choix == "1":
+                chosen_url = info["normal"]
+                display = key
+            else:
+                chosen_url = info["hs"]
+                display = f"{key}hs"
+            print(f"→ {display.upper()} sélectionnée\n")
+
+            urls = [chosen_url]
+            if "variants" in info:
+                urls.extend([v[1] for v in sorted(info["variants"])])
+            final_seasons.append((display, urls))
+
+        elif info["type"] in ["normal", "hs"]:
+            display = key
+            urls = [info["url"]]
+            if "variants" in info:
+                urls.extend([v[1] for v in sorted(info["variants"])])
+            final_seasons.append((display, urls))
+
+        elif info["type"] in ["film", "oav"]:
+            final_seasons.append((key, [info["url"]]))
+
+    return final_seasons  # ← liste de (nom_affiché, [liste_des_urls])
 
 def find_last_downloaded_episode(folder_path):
     """Trouve le dernier épisode téléchargé dans le dossier"""
@@ -274,9 +315,6 @@ def find_last_downloaded_episode(folder_path):
             season = match.group(1)
             episode = int(match.group(2))
             
-            if season.isdigit():
-                season = int(season)
-            
             episodes.append((season, episode))
     
     if not episodes:
@@ -284,28 +322,19 @@ def find_last_downloaded_episode(folder_path):
     
     def sort_key(x):
         season, episode = x
-        if isinstance(season, int):
-            return (0, season, episode)
+        season_num = season.replace('hs', '')
+        is_hs = 'hs' in season
+        if season_num.isdigit():
+            return (0, int(season_num), is_hs, episode)
         elif season == "film":
-            return (1, 0, episode)
+            return (1, 0, False, episode)
         elif season == "oav":
-            return (2, 0, episode)
+            return (2, 0, False, episode)
         else:
-            return (3, str(season), episode)
+            return (3, str(season), is_hs, episode)
     
     episodes.sort(key=sort_key, reverse=True)
     return episodes[0]
-    
-def get_total_episodes_for_season(seasons, target_season):
-    """Récupère le nombre total d'épisodes pour une saison donnée"""
-    total_episodes = 0
-    
-    for season, url, is_variant, variant_num in seasons:
-        if season == target_season:
-            sibnet_links, vidmoly_links = extract_video_links(url)
-            total_episodes += len(sibnet_links) + len(vidmoly_links)
-    
-    return total_episodes
 
 def count_downloaded_episodes_for_season(folder_path, target_season):
     """Compte le nombre d'épisodes téléchargés pour une saison spécifique"""
@@ -320,26 +349,16 @@ def count_downloaded_episodes_for_season(folder_path, target_season):
         match = pattern.match(file)
         if match:
             season = match.group(1)
-            if season.isdigit():
-                season = int(season)
-            
             if season == target_season:
                 count += 1
     
     return count
 
-def get_actual_total_episodes_for_season(seasons, target_season):
+def get_actual_total_episodes_for_season(url_list):
     """Récupère le nombre réel d'épisodes qui seront téléchargés pour une saison donnée"""
     episode_counter = 0
     
-    season_parts = []
-    for season, url, is_variant, variant_num in seasons:
-        if season == target_season:
-            season_parts.append((url, is_variant, variant_num))
-    
-    season_parts.sort(key=lambda x: (x[1], x[2]))
-    
-    for url, is_variant, variant_num in season_parts:
+    for url in url_list:
         sibnet_links, vidmoly_links = extract_video_links(url)
         episode_counter += len(sibnet_links) + len(vidmoly_links)
     
@@ -354,35 +373,16 @@ def ask_for_starting_point(folder_name, seasons):
         print(f"📁 Dernier épisode détecté : S{last_season} E{last_episode}")
         
         downloaded_count = count_downloaded_episodes_for_season(download_dir, last_season)
-        total_episodes_in_season = get_actual_total_episodes_for_season(seasons, last_season)
+        total_episodes_in_season = get_actual_total_episodes_for_season([url_list for display, url_list in seasons if display == last_season][0])
         
         print(f"📊 Épisodes téléchargés pour S{last_season}: {downloaded_count}/{total_episodes_in_season}")
         
         if total_episodes_in_season > 0 and downloaded_count >= total_episodes_in_season:
             print(f"✅ Tous les épisodes de la saison {last_season} sont déjà téléchargés")
             
-            season_keys = []
-            for season, _, _, _ in seasons:
-                if season not in season_keys:
-                    season_keys.append(season)
+            season_keys = [display for display, _ in seasons]
             
-            def custom_sort_key(x):
-                if isinstance(x, int):
-                    return (0, x)
-                elif x == "film":
-                    return (1, 0)
-                elif x == "oav":
-                    return (2, 0)
-                else:
-                    return (3, str(x))
-            
-            season_keys.sort(key=custom_sort_key)
-            current_season_index = None
-            
-            try:
-                current_season_index = season_keys.index(last_season)
-            except ValueError:
-                pass
+            current_season_index = season_keys.index(last_season) if last_season in season_keys else None
             
             if current_season_index is not None and current_season_index + 1 < len(season_keys):
                 next_season = season_keys[current_season_index + 1]
@@ -416,17 +416,14 @@ def ask_for_starting_point(folder_name, seasons):
     
     while True:
         try:
-            season_input = input("Numéro de saison (ou 'film'/'oav'): ").strip().lower()
+            season_input = input("Numéro de saison (ou 'film'/'oav', ajoutez 'hs' si HS): ").strip().lower()
             
             if season_input == "film":
                 season = "film"
             elif season_input == "oav":
                 season = "oav"
-            elif season_input.isdigit():
-                season = int(season_input)
             else:
-                print("⚠️ Saison invalide. Utilisez un numéro, 'film' ou 'oav'")
-                continue
+                season = season_input
             
             episode = int(input("Numéro d'épisode: ").strip())
             
@@ -435,7 +432,7 @@ def ask_for_starting_point(folder_name, seasons):
             
         except ValueError:
             print("⚠️ Veuillez entrer des nombres valides")
-            
+
 def check_http_403(url):
     attempts = 0
     
@@ -562,27 +559,12 @@ def download_video(link, filename, season, episode, max_episode):
         print(f"⛔ Erreur lors du téléchargement: {e}")
         return
 
-def calculate_total_episodes(seasons, selected_season=None):
-    total = 0
-    season_totals = {}
-    
-    for season, url, is_variant, variant_num in seasons:
-        if selected_season is not None and season != selected_season:
-            continue
-        
-        sibnet_links, vidmoly_links = extract_video_links(url)
-        episode_count = len(sibnet_links) + len(vidmoly_links)
-        
-        if season not in season_totals:
-            season_totals[season] = 0
-        season_totals[season] += episode_count
-        total += episode_count
-    
-    return total, season_totals
-
 def custom_sort_key(x):
-    if isinstance(x, int):
-        return (0, x)
+    if isinstance(x, str) and x.isdigit():
+        return (0, int(x))
+    elif isinstance(x, str) and 'hs' in x:
+        num = int(x.replace('hs', ''))
+        return (0, num + 0.5)
     elif x == "film":
         return (1, 0)
     elif x == "oav":
@@ -667,84 +649,56 @@ def main():
         print("⛔ Espace disque insuffisant. Libérez de l'espace et réessayez.")
         exit(1)
     
-    seasons = check_seasons(base_url, formatted_url_name, selected_language)
+    raw_season_info = check_seasons(base_url, formatted_url_name, selected_language)
+    seasons = resolve_season_choices(raw_season_info)
     
     start_season, start_episode = ask_for_starting_point(folder_name, seasons)
     
-    _, season_totals = calculate_total_episodes(seasons)
-    
-    season_groups = {}
-    for season, url, is_variant, variant_num in seasons:
-        if season not in season_groups:
-            season_groups[season] = []
-        season_groups[season].append((url, is_variant, variant_num))
-    
-    for season_key in sorted(season_groups.keys(), key=custom_sort_key):
-        season_parts = season_groups[season_key]
-        
-        if start_season != 0:
-            if start_season == "film" and season_key != "film":
-                continue
-            elif start_season == "oav" and season_key != "oav":
-                continue
-            elif isinstance(start_season, int) and season_key in ["film", "oav"]:
-                continue
-            elif isinstance(start_season, int) and isinstance(season_key, int) and season_key < start_season:
-                continue
-        
-        total_episodes_in_season = season_totals.get(season_key, 0)
-        
-        season_episode_counter = 1
-        
-        season_parts.sort(key=lambda x: (x[1], x[2]))
-        
-        for url, is_variant, variant_num in season_parts:
-            sibnet_links, vidmoly_links = extract_video_links(url)
-            
-            if not (sibnet_links or vidmoly_links):
-                continue
-            
-            current_links = sibnet_links + vidmoly_links
-            
-            if start_season != 0 and season_key == start_season:
-                if start_episode > 1:
-                    skip_episodes = start_episode - 1
-                    if skip_episodes < len(current_links):
-                        current_links = current_links[skip_episodes:]
-                        season_episode_counter = start_episode
-                    else:
-                        season_episode_counter += len(current_links)
-                        continue
-            
-            if is_variant:
-                print(f"♾️ Traitement de la Partie {variant_num} de la saison {season_key}")
-            else:
-                print(f"♾️ Traitement de la saison {season_key}")
-            
-            for link in current_links:
-                sys.stdout.write("🌐 Chargement")
+    for display_season, url_list in seasons:
+        total_episodes_in_season = 0
+        all_links = []
+
+        for url in url_list:
+            sibnet, vidmoly = extract_video_links(url)
+            all_links.extend(sibnet + vidmoly)
+
+        total_episodes_in_season = len(all_links)
+
+        if total_episodes_in_season == 0:
+            continue
+
+        episode_counter = 1
+
+        # Gestion du point de reprise
+        if start_season != 0 and str(display_season) == str(start_season):
+            if start_episode > 1:
+                all_links = all_links[start_episode - 1:]
+                episode_counter = start_episode
+
+        print(f"♾️ Téléchargement de la Saison {display_season.upper()} ({total_episodes_in_season} épisodes)")
+
+        for link in all_links:
+            sys.stdout.write("🌐 Chargement")
+            sys.stdout.flush()
+            for _ in range(3):
+                time.sleep(1)
+                sys.stdout.write(".")
                 sys.stdout.flush()
-                for _ in range(3):
-                    time.sleep(1)
-                    sys.stdout.write(".")
-                    sys.stdout.flush()
-                sys.stdout.write("\r")
-                sys.stdout.flush()
-                
-                if check_http_403(link):
-                    continue
-                
-                download_dir = os.path.join(get_download_path(), folder_name)
-                os.makedirs(download_dir, exist_ok=True)
-                
-                if season_episode_counter == 1 and season_key == sorted(season_groups.keys(), key=custom_sort_key)[0]:
-                    get_anime_image(anime_name_capitalized, download_dir)
-                
-                filename = os.path.join(download_dir, f"s{season_key}_e{season_episode_counter}.mp4")
-                
-                download_video(link, filename, season_key, season_episode_counter, total_episodes_in_season)
-                
-                season_episode_counter += 1
+            sys.stdout.write("\r")
+            sys.stdout.flush()
+            
+            if check_http_403(link):
+                continue
+            
+            download_dir = os.path.join(get_download_path(), folder_name)
+            os.makedirs(download_dir, exist_ok=True)
+            
+            if episode_counter == 1 and display_season == seasons[0][0]:
+                get_anime_image(anime_name_capitalized, download_dir)
+            
+            filename = os.path.join(download_dir, f"s{display_season}_e{episode_counter}.mp4")
+            download_video(link, filename, display_season, episode_counter, total_episodes_in_season)
+            episode_counter += 1
 
 if __name__ == "__main__":
     main()
