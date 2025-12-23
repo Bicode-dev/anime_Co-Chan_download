@@ -50,7 +50,6 @@ def check_domain_availability():
     """Vérifie la disponibilité des domaines anime-sama.fr et anime-sama.org"""
     domains = [
         ("anime-sama.fr", "https://anime-sama.fr/catalogue/"),
-        ("anime-sama.org", "https://anime-sama.org/catalogue/"),
         ("anime-sama.eu", "https://anime-sama.eu/catalogue/"),
     ]
     
