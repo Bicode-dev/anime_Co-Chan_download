@@ -56,7 +56,7 @@ def get_active_domain():
                 # Prendre le premier match et extraire l'URL de base
                 first_match = matches[0]
                 # Extraire le domaine de base + /catalogue/
-                base_match = re.match(r'(https?://anime-sama\.[a-z]+)', first_match)
+                base_match = re.match(r'(https?://anime-sama\.(?!pw)[a-z]+(?:/[^"\s]*)?', first_match)
                 if base_match:
                     base_domain = base_match.group(1)
                     full_url = f"{base_domain}/catalogue/"
