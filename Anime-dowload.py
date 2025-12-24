@@ -56,7 +56,7 @@ def get_active_domain():
                 base_domain = match.group(1)
                 full_url = f"{base_domain}/catalogue/"
                 print("✅")
-                print(f"✅ Serveur actif trouvé: {base_domain}")
+                print(f"✅ Serveur actif trouvé")
                 return full_url
             
             # Fallback : recherche moins stricte si le format change
