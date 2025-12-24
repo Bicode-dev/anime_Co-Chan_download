@@ -48,24 +48,27 @@ def get_active_domain():
         response = requests.get("https://anime-sama.pw/", timeout=10, headers=headers)
 
         if response.status_code == 200:
-            # Recherche de tous les liens contenant "anime-sama"
-            pattern = r'https?://anime-sama\.[a-z]+(?:/[^"\s]*)?'
-            matches = re.findall(pattern, response.text)
+            # Recherche spécifique du bouton "Accéder à Anime-Sama"
+            pattern = r'<a\s+class="btn-primary"\s+href="(https?://anime-sama\.[a-z]+)"'
+            match = re.search(pattern, response.text)
 
-            # Filtrer pour exclure anime-sama.pw
-            filtered_matches = [m for m in matches if 'anime-sama.pw' not in m]
-
-            if filtered_matches:
-                # Prendre le premier match et extraire l'URL de base
-                first_match = filtered_matches[0]
-                # Extraire le domaine de base + /catalogue/
-                base_match = re.match(r'(https?://anime-sama\.[a-z]+)', first_match)
-                if base_match:
-                    base_domain = base_match.group(1)
-                    full_url = f"{base_domain}/catalogue/"
-                    print("✅")
-                    print(f"✅ Serveur actif trouvé: {base_domain}")
-                    return full_url
+            if match:
+                base_domain = match.group(1)
+                full_url = f"{base_domain}/catalogue/"
+                print("✅")
+                print(f"✅ Serveur actif trouvé: {base_domain}")
+                return full_url
+            
+            # Fallback : recherche moins stricte si le format change
+            pattern_fallback = r'href="(https?://anime-sama\.(?!pw)[a-z]+)"'
+            match_fallback = re.search(pattern_fallback, response.text)
+            
+            if match_fallback:
+                base_domain = match_fallback.group(1)
+                full_url = f"{base_domain}/catalogue/"
+                print("✅")
+                print(f"✅ Serveur actif trouvé: {base_domain}")
+                return full_url
 
         print("❌")
         print("❌ Impossible de trouver le serveur actif")
@@ -73,20 +76,6 @@ def get_active_domain():
         time.sleep(10)
         exit(1)
 
-    except Exception as e:
-        print("❌")
-        print(f"❌ Erreur lors de la récupération du serveur : {e}")
-        print("\n⏰ Fermeture automatique dans 10 secondes...")
-        time.sleep(10)
-        exit(1)
-
-    except Exception as e:
-        print("❌")
-        print(f"❌ Erreur lors de la récupération du serveur : {e}")
-        print("\n⏰ Fermeture automatique dans 10 secondes...")
-        time.sleep(10)
-        exit(1)
-        
     except Exception as e:
         print("❌")
         print(f"❌ Erreur lors de la récupération du serveur : {e}")
