@@ -35,51 +35,51 @@ def set_title(title_text):
 
 set_title("Co-Chan")
 
-def ping_domain(domain):
-    """Ping un domaine pour vérifier s'il est joignable"""
+def get_active_domain():
+    """Récupère le domaine actif depuis anime-sama.pw"""
     try:
-        if platform.system() == "Windows":
-            result = os.system(f"ping -n 1 -w 1000 {domain} >nul 2>&1")
-        else:
-            result = os.system(f"ping -c 1 -W 1 {domain} >/dev/null 2>&1")
-        return result == 0
-    except:
-        return False
+        print("🔍 Recherche du serveur actif...", end=" ")
+        sys.stdout.flush()
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get("https://anime-sama.pw/", timeout=10, headers=headers)
+        
+        if response.status_code == 200:
+            # Recherche du premier lien contenant "anime-sama"
+            pattern = r'https?://anime-sama\.[a-z]+(?:/[^"\s]*)?'
+            matches = re.findall(pattern, response.text)
+            
+            if matches:
+                # Prendre le premier match et extraire l'URL de base
+                first_match = matches[0]
+                # Extraire le domaine de base + /catalogue/
+                base_match = re.match(r'(https?://anime-sama\.[a-z]+)', first_match)
+                if base_match:
+                    base_domain = base_match.group(1)
+                    full_url = f"{base_domain}/catalogue/"
+                    print("✅")
+                    print(f"✅ Serveur actif trouvé")
+                    return full_url
+        
+        print("❌")
+        print("❌ Impossible de trouver le serveur actif")
+        print("\n⏰ Fermeture automatique dans 10 secondes...")
+        time.sleep(10)
+        exit(1)
+        
+    except Exception as e:
+        print("❌")
+        print(f"❌ Erreur lors de la récupération du serveur : {e}")
+        print("\n⏰ Fermeture automatique dans 10 secondes...")
+        time.sleep(10)
+        exit(1)
 
 def check_domain_availability():
-    """Vérifie la disponibilité des domaines anime-sama.fr et anime-sama.org"""
-    domains = [
-        ("anime-sama.fr", "https://anime-sama.fr/catalogue/"),
-        ("anime-sama.si", "https://anime-sama.si/catalogue/"),
-    ]
-    
-    print("🔍 Vérification des serveurs...", end=" ")
-    sys.stdout.flush()
-    
-    for domain_name, full_url in domains:
-        ping_ok = ping_domain(domain_name)
-        
-        if ping_ok:
-            print("✅ Réponse")
-            return full_url
-        
-        # Test HTTP si le ping échoue
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            response = requests.get(full_url, timeout=10, headers=headers)
-            if response.status_code == 200:
-                print("✅ Réponse")
-                return full_url
-        except:
-            pass
-    
-    print("❌")
-    print("❌ Co-Chan temporairement indisponible")
-    print("\n⏰ Fermeture automatique dans 10 secondes...")
-    time.sleep(10)
-    exit(1)
+    """Vérifie la disponibilité en récupérant le domaine actif"""
+    return get_active_domain()
 
 def check_disk_space(min_gb=1):
     s = platform.system()
