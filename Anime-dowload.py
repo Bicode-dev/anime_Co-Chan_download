@@ -40,32 +40,39 @@ def get_active_domain():
     try:
         print("🔍 Recherche du serveur actif...", end=" ")
         sys.stdout.flush()
-        
+
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        
+
         response = requests.get("https://anime-sama.pw/", timeout=10, headers=headers)
-        
+
         if response.status_code == 200:
-            # Recherche du premier lien contenant "anime-sama"
-            pattern = r'https?://anime-sama\.[a-z]+(?:/[^"\s]*)?'
+            # Recherche des liens contenant "anime-sama" mais EXCLUANT anime-sama.pw
+            pattern = r'https?://anime-sama\.(?!pw)[a-z]+(?:/[^"\s]*)?'
             matches = re.findall(pattern, response.text)
-            
+
             if matches:
                 # Prendre le premier match et extraire l'URL de base
                 first_match = matches[0]
                 # Extraire le domaine de base + /catalogue/
-                base_match = re.match(r'(https?://anime-sama\.(?!pw)[a-z]+(?:/[^"\s]*)?', first_match)
+                base_match = re.match(r'(https?://anime-sama\.[a-z]+)', first_match)
                 if base_match:
                     base_domain = base_match.group(1)
                     full_url = f"{base_domain}/catalogue/"
                     print("✅")
-                    print(f"✅ Serveur actif trouvé")
+                    print(f"✅ Serveur actif trouvé: {base_domain}")
                     return full_url
-        
+
         print("❌")
         print("❌ Impossible de trouver le serveur actif")
+        print("\n⏰ Fermeture automatique dans 10 secondes...")
+        time.sleep(10)
+        exit(1)
+
+    except Exception as e:
+        print("❌")
+        print(f"❌ Erreur lors de la récupération du serveur : {e}")
         print("\n⏰ Fermeture automatique dans 10 secondes...")
         time.sleep(10)
         exit(1)
