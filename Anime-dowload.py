@@ -67,7 +67,7 @@ def get_active_domain():
                 base_domain = match_fallback.group(1)
                 full_url = f"{base_domain}/catalogue/"
                 print("✅")
-                print(f"✅ Serveur actif trouvé: {base_domain}")
+                print(f"✅ Serveur actif trouvé")
                 return full_url
 
         print("❌")
