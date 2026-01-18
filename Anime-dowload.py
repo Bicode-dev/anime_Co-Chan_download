@@ -59,7 +59,6 @@ def get_active_domain():
                 print(f"✅ Serveur actif trouvé")
                 return full_url
             
-            # Fallback : recherche moins stricte si le format change
             pattern_fallback = r'href="(https?://anime-sama\.(?!pw)[a-z]+)"'
             match_fallback = re.search(pattern_fallback, response.text)
             
@@ -676,10 +675,26 @@ def main():
         episode_counter = 1
 
         # Gestion du point de reprise
-        if start_season != 0 and str(display_season) == str(start_season):
-            if start_episode > 1:
-                all_links = all_links[start_episode - 1:]
-                episode_counter = start_episode
+        if start_season != 0:
+            # Trouver l'index de la saison de départ et de la saison actuelle
+            season_keys = [s for s, _ in seasons]
+            try:
+                start_index = season_keys.index(start_season)
+                current_index = season_keys.index(display_season)
+                
+                # Si on est avant la saison de départ, on skip complètement cette saison
+                if current_index < start_index:
+                    print(f"⏭️ Saison {display_season.upper()} ignorée (avant S{start_season})")
+                    continue
+                # Si on est à la saison de départ et qu'il faut commencer à un épisode > 1
+                elif current_index == start_index and start_episode > 1:
+                    all_links = all_links[start_episode - 1:]
+                    episode_counter = start_episode
+                    print(f"➡️ Reprise à S{display_season} E{start_episode}")
+                # Si on est après la saison de départ, on télécharge normalement (pas de modification)
+            except ValueError:
+                # Si la saison n'est pas trouvée dans la liste, on continue normalement
+                pass
 
         print(f"♾️ Téléchargement de la Saison {display_season.upper()} ({total_episodes_in_season} épisodes)")
 
