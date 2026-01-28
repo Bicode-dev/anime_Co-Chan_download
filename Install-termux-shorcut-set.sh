@@ -300,16 +300,8 @@ if [ "$IS_ISH" = true ]; then
     echo "   echo 'alias anime=\"python3 ~/Anime-download.py\"' >> ~/.profile"
     echo "   Puis redémarrer iSH et taper simplement: anime"
     echo ""
-    echo "📂 Comment accéder aux vidéos téléchargées sur iPad :"
-    echo "   1. Monter le système iOS :"
-    echo "      mount -t ios dummy /mnt"
-    echo ""
-    echo "   2. Choisir un dossier (ex: 'Sur mon iPad') dans la fenêtre qui s'ouvre"
-    echo ""
-    echo "   3. Copier les vidéos vers l'iPad :"
-    echo "      cp ~/anime/* /mnt/"
-    echo ""
-    echo "   4. Les vidéos seront accessibles dans l'app Fichiers de l'iPad"
+    echo "📂 Pour voir les vidéos sur iPad :"
+    echo "   Utilisez la commande: voiranime"
     
 elif [ "$IS_TERMUX" = true ]; then
     echo "📱 Configuration Termux (Android) :"
