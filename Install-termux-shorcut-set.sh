@@ -85,10 +85,14 @@ if [ "$IS_ISH" = true ]; then
     echo "Installation de Python 3 et pip..."
     apk add python3 py3-pip git curl
     
-    # Installation des dépendances Python
+    # Installation des dépendances Python essentielles
     echo "Installation des bibliothèques Python..."
-    pip3 install --break-system-packages requests beautifulsoup4 numpy
+    pip3 install --break-system-packages requests beautifulsoup4
     pip3 install --break-system-packages -U yt-dlp
+    
+    # NumPy est optionnel (pas utilisé dans le script anime)
+    echo "Installation de NumPy (optionnel)..."
+    apk add py3-numpy 2>/dev/null || echo "⚠️ NumPy ignoré (non essentiel pour ce script)"
     
     # Pour Pillow sur Alpine, on a besoin de dépendances supplémentaires
     echo "Installation des dépendances pour Pillow..."
@@ -108,7 +112,7 @@ elif [ "$IS_TERMUX" = true ]; then
     # Installation des dépendances Python
     echo "Installation des bibliothèques Python..."
     pip install --upgrade pip
-    pip install requests beautifulsoup4 numpy
+    pip install requests beautifulsoup4
     pip install -U yt-dlp
     pip install Pillow || echo "⚠️ Pillow optionnel, continuer sans..."
     
@@ -120,8 +124,8 @@ else
     echo "   - git"
     echo ""
     echo "Puis installez les dépendances Python:"
-    pip3 install --break-system-packages requests beautifulsoup4 numpy yt-dlp Pillow 2>/dev/null || \
-    pip3 install requests beautifulsoup4 numpy yt-dlp Pillow
+    pip3 install --break-system-packages requests beautifulsoup4 yt-dlp Pillow 2>/dev/null || \
+    pip3 install requests beautifulsoup4 yt-dlp Pillow
 fi
 
 echo ""
