@@ -9,6 +9,10 @@ Français/French only
 
 `bash Install-termux-shorcut-set.sh`
 
+🍎ish-shell🍎 :
+
+`apk update && apk add bash python3 py3-pip git curl && curl -L -o Install-termux-shorcut-set.sh https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Install-termux-shorcut-set.sh && bash Install-termux-shorcut-set.sh`
+
 💻windows🖥️ :
 
 juste open `Setup.bat`
