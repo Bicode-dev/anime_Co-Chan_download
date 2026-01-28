@@ -1,33 +1,61 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/bin/sh
+
+# Script d'installation compatible iSH Shell (iOS) et Termux (Android)
+# iSH utilise Alpine Linux avec apk comme gestionnaire de paquets
+# Termux utilise pkg/apt
+
+echo "🔍 Détection de l'environnement..."
 
 # Détection de la plateforme
 PLATFORM=$(uname -s)
+IS_ISH=false
+IS_TERMUX=false
 IS_IOS=false
 
-# Détection iOS
-if [ "$PLATFORM" = "Darwin" ]; then
+# Détection iSH (Alpine Linux sur iOS)
+if [ -f "/etc/alpine-release" ]; then
+    IS_ISH=true
+    IS_IOS=true
+    echo "📱 Plateforme détectée : iSH Shell (iOS - iPhone/iPad)"
+    PKG_MANAGER="apk"
+    
+# Détection Termux (Android)
+elif [ -d "/data/data/com.termux" ]; then
+    IS_TERMUX=true
+    echo "📱 Plateforme détectée : Termux (Android)"
+    PKG_MANAGER="pkg"
+    
+# Détection iOS (autres apps comme Pythonista)
+elif [ "$PLATFORM" = "Darwin" ]; then
     if [ -d "/var/mobile" ] || [ -f "/System/Library/CoreServices/SpringBoard.app/SpringBoard" ]; then
         IS_IOS=true
         echo "📱 Plateforme détectée : iOS (iPhone/iPad)"
     else
         echo "🖥️ Plateforme détectée : macOS"
     fi
+    
+# Android standard
 elif [ -d "/storage/emulated/0" ] || [ -d "/sdcard" ]; then
+    IS_TERMUX=true
     echo "📱 Plateforme détectée : Android (Termux)"
+    PKG_MANAGER="pkg"
+    
 else
     echo "🖥️ Plateforme détectée : Linux"
 fi
 
+echo ""
+
 # Configuration du stockage selon la plateforme
-if [ "$IS_IOS" = true ]; then
-    echo "⚠️ Sur iOS, l'accès au stockage est limité aux dossiers Documents et Downloads"
-    echo "Les fichiers seront téléchargés dans le dossier Documents de Termux"
+if [ "$IS_ISH" = true ]; then
+    echo "⚙️ Configuration iSH (Alpine Linux)..."
+    echo "Les fichiers seront téléchargés dans ~/anime/"
+    mkdir -p ~/anime
+    DOWNLOAD_PATH="$HOME/anime"
     
-    # Créer le dossier anime dans Documents si nécessaire
-    mkdir -p ~/Documents/anime
-    
-elif [ -d "/storage/emulated/0" ]; then
-    # Android - Vérifier si termux-setup-storage a été exécuté
+elif [ "$IS_TERMUX" = true ]; then
+    echo "⚙️ Configuration Termux (Android)..."
+    # Vérifier si termux-setup-storage a été exécuté
     if [ ! -d "$HOME/storage" ]; then
         echo "Configuration du stockage Android..."
         termux-setup-storage
@@ -35,58 +63,122 @@ elif [ -d "/storage/emulated/0" ]; then
     else
         echo "Le stockage est déjà configuré."
     fi
+    DOWNLOAD_PATH="/storage/emulated/0/Download/anime"
+    
 else
-    echo "Configuration du stockage standard..."
+    echo "⚙️ Configuration stockage standard..."
+    mkdir -p ~/Downloads/anime
+    DOWNLOAD_PATH="$HOME/Downloads/anime"
 fi
 
-# Mise à jour des paquets et installation des dépendances
-echo "Mise à jour de Termux et installation de Python, pip et git..."
-pkg update && pkg upgrade -y
-pkg install python git -y
-pip install --upgrade pip
+echo ""
 
-echo "Installation des dépendances Python..."
-pip install requests beautifulsoup4 numpy
-
-# Installation de yt-dlp
-echo "Installation de yt-dlp..."
-pip install -U yt-dlp
-
-# Téléchargement du script Python compatible iOS
-echo "Téléchargement du script de téléchargement d'anime..."
-if [ "$IS_IOS" = true ]; then
-    # Pour iOS, télécharger dans le dossier Documents
-    curl -L -o ~/Documents/Anime-dowload-termux.py https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Anime-dowload.py
-    SCRIPT_PATH="~/Documents/Anime-dowload-termux.py"
+# Installation des paquets selon la plateforme
+if [ "$IS_ISH" = true ]; then
+    echo "📦 Installation des paquets pour iSH (Alpine Linux)..."
+    
+    # Mise à jour des dépôts
+    apk update
+    apk upgrade
+    
+    # Installation de Python et dépendances
+    echo "Installation de Python 3 et pip..."
+    apk add python3 py3-pip git curl
+    
+    # Installation des dépendances Python
+    echo "Installation des bibliothèques Python..."
+    pip3 install --break-system-packages requests beautifulsoup4 numpy
+    pip3 install --break-system-packages -U yt-dlp
+    
+    # Pour Pillow sur Alpine, on a besoin de dépendances supplémentaires
+    echo "Installation des dépendances pour Pillow..."
+    apk add jpeg-dev zlib-dev py3-pillow
+    pip3 install --break-system-packages Pillow || echo "⚠️ Pillow optionnel, continuer sans..."
+    
+elif [ "$IS_TERMUX" = true ]; then
+    echo "📦 Installation des paquets pour Termux (Android)..."
+    
+    # Mise à jour des paquets
+    pkg update && pkg upgrade -y
+    
+    # Installation de Python et dépendances
+    echo "Installation de Python 3 et pip..."
+    pkg install python git -y
+    
+    # Installation des dépendances Python
+    echo "Installation des bibliothèques Python..."
+    pip install --upgrade pip
+    pip install requests beautifulsoup4 numpy
+    pip install -U yt-dlp
+    pip install Pillow || echo "⚠️ Pillow optionnel, continuer sans..."
+    
 else
-    # Pour Android/Linux, télécharger dans le home
-    curl -L -o ~/Anime-dowload-termux.py https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Anime-dowload.py
-    SCRIPT_PATH="~/Anime-dowload-termux.py"
+    echo "📦 Installation des paquets (Linux standard)..."
+    echo "⚠️ Utilisez votre gestionnaire de paquets (apt/dnf/pacman) pour installer:"
+    echo "   - python3"
+    echo "   - python3-pip"
+    echo "   - git"
+    echo ""
+    echo "Puis installez les dépendances Python:"
+    pip3 install --break-system-packages requests beautifulsoup4 numpy yt-dlp Pillow 2>/dev/null || \
+    pip3 install requests beautifulsoup4 numpy yt-dlp Pillow
 fi
 
-# Créer le répertoire de raccourcis s'il n'existe pas
+echo ""
+
+# Téléchargement du script Python
+echo "📥 Téléchargement du script de téléchargement d'anime..."
+
+if [ "$IS_ISH" = true ] || [ "$IS_IOS" = true ]; then
+    # Pour iSH/iOS, télécharger dans le home
+    SCRIPT_PATH="$HOME/Anime-download.py"
+else
+    # Pour Termux/Android, télécharger dans le home
+    SCRIPT_PATH="$HOME/Anime-download.py"
+fi
+
+# Télécharger le script depuis GitHub
+curl -L -o "$SCRIPT_PATH" https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Anime-dowload.py
+
+if [ -f "$SCRIPT_PATH" ]; then
+    echo "✅ Script téléchargé avec succès"
+    chmod +x "$SCRIPT_PATH"
+else
+    echo "❌ Erreur lors du téléchargement du script"
+    exit 1
+fi
+
+echo ""
+
+# Créer le répertoire de raccourcis
 mkdir -p ~/.shortcuts
 
 # Créer le fichier shell pour exécuter le script Python
-if [ "$IS_IOS" = true ]; then
-    # Version iOS
+if [ "$IS_ISH" = true ]; then
+    # Version iSH
     cat << 'EOF' > ~/.shortcuts/anime_downloader.sh
-#!/data/data/com.termux/files/usr/bin/bash
-# Se rendre dans le répertoire Documents
-cd ~/Documents
-
-# Exécution du script Python pour télécharger des vidéos d'anime
-python3 Anime-dowload-termux.py
-EOF
-else
-    # Version Android/Linux
-    cat << 'EOF' > ~/.shortcuts/anime_downloader.sh
-#!/data/data/com.termux/files/usr/bin/bash
-# Se rendre dans le répertoire de travail
+#!/bin/sh
+# iSH Shell - Lancer le téléchargeur d'anime
 cd ~
+python3 Anime-download.py
+EOF
 
-# Exécution du script Python pour télécharger des vidéos d'anime
-python3 Anime-dowload-termux.py
+elif [ "$IS_TERMUX" = true ]; then
+    # Version Termux
+    cat << 'EOF' > ~/.shortcuts/anime_downloader.sh
+#!/data/data/com.termux/files/usr/bin/bash
+# Termux - Lancer le téléchargeur d'anime
+cd ~
+python3 Anime-download.py
+EOF
+
+else
+    # Version Linux/macOS standard
+    cat << 'EOF' > ~/.shortcuts/anime_downloader.sh
+#!/bin/bash
+# Lancer le téléchargeur d'anime
+cd ~
+python3 Anime-download.py
 EOF
 fi
 
@@ -96,31 +188,47 @@ chmod +x ~/.shortcuts/anime_downloader.sh
 echo ""
 echo "✅ Installation terminée !"
 echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if [ "$IS_IOS" = true ]; then
-    echo "📱 Configuration iOS :"
-    echo "  - Script installé dans : ~/Documents/Anime-dowload-termux.py"
-    echo "  - Téléchargements dans : ~/Documents/anime/"
-    echo "  - Raccourci créé dans : ~/.shortcuts/anime_downloader.sh"
+if [ "$IS_ISH" = true ]; then
+    echo "📱 Configuration iSH Shell (iOS) :"
+    echo "  • Script installé : ~/Anime-download.py"
+    echo "  • Téléchargements : ~/anime/"
+    echo "  • Raccourci : ~/.shortcuts/anime_downloader.sh"
     echo ""
-    echo "Pour lancer le script :"
-    echo "  1. Tapez : cd ~/Documents"
-    echo "  2. Puis : python3 Anime-dowload-termux.py"
-    echo "  OU utilisez le widget Termux pour lancer le raccourci"
+    echo "🚀 Pour lancer le script :"
+    echo "   python3 ~/Anime-download.py"
+    echo ""
+    echo "💡 Astuce iSH :"
+    echo "   Vous pouvez créer un alias dans ~/.profile :"
+    echo "   echo 'alias anime=\"python3 ~/Anime-download.py\"' >> ~/.profile"
+    echo "   Puis redémarrer iSH et taper simplement: anime"
+    
+elif [ "$IS_TERMUX" = true ]; then
+    echo "📱 Configuration Termux (Android) :"
+    echo "  • Script installé : ~/Anime-download.py"
+    echo "  • Téléchargements : /storage/emulated/0/Download/anime/"
+    echo "  • Raccourci : ~/.shortcuts/anime_downloader.sh"
+    echo ""
+    echo "🚀 Pour lancer le script :"
+    echo "   python3 ~/Anime-download.py"
+    echo ""
+    echo "💡 Astuce Termux :"
+    echo "   Utilisez le widget Termux pour accéder aux raccourcis"
+    echo "   OU créez un alias :"
+    echo "   echo 'alias anime=\"python3 ~/Anime-download.py\"' >> ~/.bashrc"
+    
 else
-    echo "📱 Configuration Android/Linux :"
-    echo "  - Script installé dans : ~/Anime-dowload-termux.py"
-    if [ -d "/storage/emulated/0" ]; then
-        echo "  - Téléchargements dans : /storage/emulated/0/Download/anime/"
-    else
-        echo "  - Téléchargements dans : ~/Downloads/anime/"
-    fi
-    echo "  - Raccourci créé dans : ~/.shortcuts/anime_downloader.sh"
+    echo "🖥️ Configuration Linux/macOS :"
+    echo "  • Script installé : ~/Anime-download.py"
+    echo "  • Téléchargements : ~/Downloads/anime/"
+    echo "  • Raccourci : ~/.shortcuts/anime_downloader.sh"
     echo ""
-    echo "Pour lancer le script :"
-    echo "  1. Tapez : python3 ~/Anime-dowload-termux.py"
-    echo "  OU utilisez le widget Termux pour lancer le raccourci"
+    echo "🚀 Pour lancer le script :"
+    echo "   python3 ~/Anime-download.py"
 fi
 
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "🎉 Le script est prêt à être utilisé !"
+echo "🎉 Tout est prêt ! Bon téléchargement ! 🎌"
+echo ""
