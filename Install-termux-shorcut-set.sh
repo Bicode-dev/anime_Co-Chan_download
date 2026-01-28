@@ -186,6 +186,51 @@ fi
 chmod +x ~/.shortcuts/anime_downloader.sh
 
 echo ""
+
+# Proposer de créer l'alias automatiquement
+if [ "$IS_ISH" = true ] || [ "$IS_TERMUX" = true ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "💡 Configuration de l'alias 'anime'"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Voulez-vous créer un alias 'anime' pour lancer facilement le script ?"
+    echo "Vous pourrez ensuite taper simplement: anime"
+    echo ""
+    printf "Créer l'alias ? (o/n) [o]: "
+    read -r create_alias
+    
+    # Par défaut : oui
+    if [ -z "$create_alias" ]; then
+        create_alias="o"
+    fi
+    
+    if [ "$create_alias" = "o" ] || [ "$create_alias" = "y" ] || [ "$create_alias" = "yes" ] || [ "$create_alias" = "oui" ]; then
+        if [ "$IS_ISH" = true ]; then
+            # Pour iSH, utiliser .profile
+            if ! grep -q "alias anime=" ~/.profile 2>/dev/null; then
+                echo 'alias anime="python3 ~/Anime-download.py"' >> ~/.profile
+                echo "✅ Alias créé dans ~/.profile"
+                echo "   Redémarrez iSH puis tapez: anime"
+            else
+                echo "ℹ️ Alias déjà présent dans ~/.profile"
+            fi
+        else
+            # Pour Termux, utiliser .bashrc
+            if ! grep -q "alias anime=" ~/.bashrc 2>/dev/null; then
+                echo 'alias anime="python3 ~/Anime-download.py"' >> ~/.bashrc
+                echo "✅ Alias créé dans ~/.bashrc"
+                echo "   Redémarrez Termux puis tapez: anime"
+            else
+                echo "ℹ️ Alias déjà présent dans ~/.bashrc"
+            fi
+        fi
+    else
+        echo "⏭️ Alias non créé"
+    fi
+    echo ""
+fi
+
+echo ""
 echo "✅ Installation terminée !"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -213,10 +258,12 @@ elif [ "$IS_TERMUX" = true ]; then
     echo "🚀 Pour lancer le script :"
     echo "   python3 ~/Anime-download.py"
     echo ""
-    echo "💡 Astuce Termux :"
-    echo "   Utilisez le widget Termux pour accéder aux raccourcis"
-    echo "   OU créez un alias :"
+    echo "💡 Méthode recommandée - Créer un alias :"
     echo "   echo 'alias anime=\"python3 ~/Anime-download.py\"' >> ~/.bashrc"
+    echo "   Puis redémarrer Termux et taper simplement: anime"
+    echo ""
+    echo "💡 Alternative - Utiliser le widget Termux :"
+    echo "   Le widget peut exécuter les raccourcis dans ~/.shortcuts/"
     
 else
     echo "🖥️ Configuration Linux/macOS :"
