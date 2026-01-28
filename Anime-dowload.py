@@ -624,6 +624,100 @@ def extract_video_links(url):
     
     return sibnet_links, vidmoly_links
 
+def copy_to_ipad_if_mounted(filename):
+    """Copie automatiquement le fichier vers l'iPad si /mnt est monté (iSH)"""
+    if not is_ish_shell():
+        return
+    
+    # Vérifier si /mnt est monté
+    if not os.path.ismount("/mnt"):
+        return
+    
+    try:
+        # Copier le fichier vers /mnt
+        import shutil as sh
+        dest = os.path.join("/mnt", os.path.basename(filename))
+        sh.copy2(filename, dest)
+        print(f"📱 Copié vers iPad: {os.path.basename(filename)}")
+    except Exception as e:
+        # Silencieux si la copie échoue
+        pass
+
+def cleanup_old_episodes(current_file):
+    """Supprime tous les épisodes copiés sauf le dernier sur /mnt (iPad) - iSH uniquement si copie auto activée"""
+    # Vérifier que c'est iSH et que la copie auto est activée (iPad monté)
+    if not is_ish_shell():
+        return
+    
+    if not os.path.ismount("/mnt"):
+        return
+    
+    try:
+        current_filename = os.path.basename(current_file)
+        
+        # Lister tous les fichiers .mp4 sur /mnt (iPad)
+        if not os.path.exists("/mnt"):
+            return
+            
+        mp4_files = [f for f in os.listdir("/mnt") if f.endswith('.mp4')]
+        
+        # Supprimer tous les fichiers sauf le dernier copié (pour debug)
+        for filename in mp4_files:
+            if filename != current_filename:
+                file_path = os.path.join("/mnt", filename)
+                try:
+                    os.remove(file_path)
+                    print(f"🗑️ Ancien épisode supprimé de l'iPad : {filename}")
+                except Exception as e:
+                    print(f"⚠️ Impossible de supprimer {filename}: {e}")
+    except Exception as e:
+        print(f"⚠️ Erreur lors du nettoyage : {e}")
+
+def setup_ipad_mount():
+    """Configure le montage iPad au début (une seule fois)"""
+    if not is_ish_shell():
+        return
+    
+    # Vérifier si /mnt existe
+    if not os.path.exists("/mnt"):
+        try:
+            os.makedirs("/mnt")
+        except:
+            pass
+    
+    # Vérifier si déjà monté
+    if os.path.ismount("/mnt"):
+        print("✅ iPad déjà monté, copie automatique activée")
+        return
+    
+    # Demander si l'utilisateur veut activer la copie automatique
+    print("\n📱 Copie automatique vers iPad")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    choice = input("Activer la copie automatique vers iPad ? (o/n): ").strip().lower()
+    
+    if choice in ['o', 'oui', 'y', 'yes', '']:
+        print("\n🔌 Montage de l'iPad...")
+        print("Une fenêtre va s'ouvrir, choisissez 'Sur mon iPad' ou un autre dossier")
+        print("")
+        
+        try:
+            os.system("mount -t ios dummy /mnt")
+            if os.path.ismount("/mnt"):
+                print("✅ iPad monté avec succès !")
+                print("📱 Chaque épisode sera automatiquement copié vers votre iPad")
+                print("")
+            else:
+                print("⚠️ Montage échoué, les vidéos resteront dans ~/anime/")
+                print("")
+        except:
+            print("⚠️ Impossible de monter l'iPad")
+            print("")
+    else:
+        print("⏭️ Copie automatique désactivée")
+        print("   Les vidéos seront dans ~/anime/")
+        print("   Utilisez 'voiranime' plus tard pour les copier")
+        print("")
+
 def download_video(link, filename, season, episode, max_episode):
     if not check_disk_space():
         print(f"⛔ Espace disque insuffisant. Arrêt du téléchargement pour [S{season} E{episode}/{max_episode}].")
@@ -645,6 +739,15 @@ def download_video(link, filename, season, episode, max_episode):
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([link])
+        
+        # Sur iSH seulement : copier vers iPad si monté, puis nettoyer les anciens
+        if os.path.exists(filename):
+            copy_to_ipad_if_mounted(filename)
+            
+            # Nettoyer les anciens épisodes sur l'iPad (seulement si copie auto activée)
+            if is_ish_shell() and os.path.ismount("/mnt"):
+                cleanup_old_episodes(filename)
+            
     except Exception as e:
         sys.stdout.write("\r")
         sys.stdout.flush()
@@ -750,6 +853,9 @@ def main():
     
     raw_season_info = check_seasons(base_url, formatted_url_name, selected_language)
     seasons = resolve_season_choices(raw_season_info)
+    
+    # Configuration du montage iPad pour iSH (une seule fois au début)
+    setup_ipad_mount()
     
     start_season, start_episode = ask_for_starting_point(folder_name, seasons)
     
