@@ -24,14 +24,32 @@ class MyLogger:
     def error(self, msg):
         print(msg)
 
+def is_ios_device():
+    """Détecte si on est sur un appareil iOS (iPhone/iPad)"""
+    s = platform.system()
+    # Vérification pour iOS
+    if s == "Darwin":
+        # Vérifier si c'est un appareil mobile iOS
+        if os.path.exists("/var/mobile") or "iPad" in platform.machine() or "iPhone" in platform.machine():
+            return True
+        # Vérifier via l'environnement (pour Pythonista ou autres apps iOS)
+        if os.environ.get("HOME", "").startswith("/var/mobile"):
+            return True
+    return False
+
 def set_title(title_text):
     s = platform.system()
     is_termux = s == "Linux" and "ANDROID_STORAGE" in os.environ
+    is_ios = is_ios_device()
     
     if s == "Windows":
         os.system(f"title {title_text}")
     elif s == "Linux" and not is_termux:
         os.system(f'echo -e "\033]0;{title_text}\007"')
+    elif s == "Darwin" and not is_ios:
+        # macOS uniquement
+        os.system(f'echo -e "\033]0;{title_text}\007"')
+    # Pour iOS, le titre n'est pas modifiable via terminal
 
 set_title("Co-Chan")
 
@@ -104,6 +122,7 @@ def check_disk_space(min_gb=1):
         free_space_gb = free / (1024**3)
         
     elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
+        # Android (Termux)
         try:
             output = os.popen("df -h /storage/emulated/0").read()
             lines = output.split("\n")
@@ -119,7 +138,20 @@ def check_disk_space(min_gb=1):
                 free_space_gb = 0
         except:
             free_space_gb = 0
+    elif s == "Darwin" and is_ios_device():
+        # iOS (iPhone/iPad)
+        try:
+            # Pour iOS, on vérifie l'espace disponible sur le répertoire home ou Documents
+            home_path = os.path.expanduser("~")
+            if os.path.exists(home_path):
+                total, used, free = shutil.disk_usage(home_path)
+                free_space_gb = free / (1024**3)
+            else:
+                free_space_gb = 0
+        except:
+            free_space_gb = 0
     else:
+        # Unix/Linux/macOS standard
         statvfs = os.statvfs("/")
         free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024**3)
     
@@ -135,13 +167,40 @@ def progress_hook(d, season, episode, max_episode):
         sys.stdout.flush()
 
 def get_download_path():
-    if platform.system() == "Windows":
+    """Retourne le chemin de téléchargement selon la plateforme"""
+    s = platform.system()
+    
+    if s == "Windows":
         return os.path.join(os.getcwd())
-    elif platform.system() == "Linux" and "ANDROID_STORAGE" in os.environ:
+    elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
+        # Android (Termux)
         return "/storage/emulated/0/Download/anime"
+    elif s == "Darwin" and is_ios_device():
+        # iOS (iPhone/iPad)
+        # Essayer plusieurs chemins possibles pour iOS
+        possible_paths = [
+            os.path.expanduser("~/Documents/anime"),  # Pythonista, iSH
+            os.path.expanduser("~/Downloads/anime"),  # Certaines apps
+            os.path.join(os.getcwd(), "anime")        # Dossier local
+        ]
+        
+        # Retourner le premier chemin accessible
+        for path in possible_paths:
+            try:
+                os.makedirs(path, exist_ok=True)
+                if os.access(path, os.W_OK):
+                    return path
+            except:
+                continue
+        
+        # Si aucun chemin n'est accessible, utiliser le répertoire courant
+        return os.path.join(os.getcwd(), "anime")
+    elif s == "Darwin":
+        # macOS
+        return os.path.join(os.path.expanduser("~"), "Downloads", "anime")
     else:
-        print("Ce script ne fonctionne que sous Windows ou Android.")
-        exit(1)
+        # Linux standard
+        return os.path.join(os.path.expanduser("~"), "Downloads", "anime")
 
 def format_url_name(name):
     return name.lower().replace("'", "").replace(" ", "-")
@@ -482,44 +541,46 @@ def get_anime_image(anime_name, folder_name):
             f.write(image_data)
         
         if pil_available:
-            ico_path = os.path.join(folder_name, "folder.ico")
-            image = Image.open(io.BytesIO(image_data))
-            
-            size = 256
-            square_img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-            width, height = image.size
-            
-            if width > height:
-                new_height = int(height * size / width)
-                resized_img = image.resize((size, new_height))
-                y_offset = (size - new_height) // 2
-                square_img.paste(resized_img, (0, y_offset))
-            else:
-                new_width = int(width * size / height)
-                resized_img = image.resize((new_width, size))
-                x_offset = (size - new_width) // 2
-                square_img.paste(resized_img, (x_offset, 0))
-            
-            square_img.save(ico_path, format='ICO', sizes=[(size, size)])
-            
-            if os.name == 'nt':
-                os.system(f'attrib +h "{ico_path}"')
-            
-            absolute_ico_path = os.path.abspath(ico_path)
-            desktop_ini_path = os.path.join(folder_name, "desktop.ini")
-            
-            with open(desktop_ini_path, "w") as ini_file:
-                ini_file.write(f"""[.ShellClassInfo]
+            # Création de l'icône uniquement pour Windows
+            if platform.system() == "Windows":
+                ico_path = os.path.join(folder_name, "folder.ico")
+                image = Image.open(io.BytesIO(image_data))
+                
+                size = 256
+                square_img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+                width, height = image.size
+                
+                if width > height:
+                    new_height = int(height * size / width)
+                    resized_img = image.resize((size, new_height))
+                    y_offset = (size - new_height) // 2
+                    square_img.paste(resized_img, (0, y_offset))
+                else:
+                    new_width = int(width * size / height)
+                    resized_img = image.resize((new_width, size))
+                    x_offset = (size - new_width) // 2
+                    square_img.paste(resized_img, (x_offset, 0))
+                
+                square_img.save(ico_path, format='ICO', sizes=[(size, size)])
+                
+                if os.name == 'nt':
+                    os.system(f'attrib +h "{ico_path}"')
+                
+                absolute_ico_path = os.path.abspath(ico_path)
+                desktop_ini_path = os.path.join(folder_name, "desktop.ini")
+                
+                with open(desktop_ini_path, "w") as ini_file:
+                    ini_file.write(f"""[.ShellClassInfo]
 IconResource={absolute_ico_path},0
 [ViewState]
 Mode=
 Vid=
 FolderType=Generic
 """)
-            
-            if os.name == 'nt':
-                os.system(f'attrib +s "{folder_name}"')
-                os.system(f'attrib +h +s "{desktop_ini_path}"')
+                
+                if os.name == 'nt':
+                    os.system(f'attrib +s "{folder_name}"')
+                    os.system(f'attrib +h +s "{desktop_ini_path}"')
                 
     except Exception:
         pass
@@ -585,6 +646,13 @@ def show_usage():
     print("Exemples:")
     print("  python script.py \"one piece\" vf")
     print("  python script.py \"naruto\" vostfr")
+    print()
+    print("Plateformes supportées:")
+    print("  - Windows")
+    print("  - macOS")
+    print("  - Linux")
+    print("  - Android (Termux)")
+    print("  - iOS (iPhone/iPad)")
 
 def main():
     # Vérification de la disponibilité des domaines
