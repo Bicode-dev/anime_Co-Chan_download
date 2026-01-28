@@ -27,6 +27,11 @@ class MyLogger:
 def is_ios_device():
     """Détecte si on est sur un appareil iOS (iPhone/iPad)"""
     s = platform.system()
+    
+    # Détection iSH Shell (Alpine Linux sur iOS)
+    if os.path.exists("/etc/alpine-release"):
+        return True
+    
     # Vérification pour iOS
     if s == "Darwin":
         # Vérifier si c'est un appareil mobile iOS
@@ -37,19 +42,24 @@ def is_ios_device():
             return True
     return False
 
+def is_ish_shell():
+    """Détecte si on est sur iSH Shell (Alpine Linux sur iOS)"""
+    return os.path.exists("/etc/alpine-release")
+
 def set_title(title_text):
     s = platform.system()
     is_termux = s == "Linux" and "ANDROID_STORAGE" in os.environ
+    is_ish = is_ish_shell()
     is_ios = is_ios_device()
     
     if s == "Windows":
         os.system(f"title {title_text}")
-    elif s == "Linux" and not is_termux:
+    elif s == "Linux" and not is_termux and not is_ish:
         os.system(f'echo -e "\033]0;{title_text}\007"')
     elif s == "Darwin" and not is_ios:
         # macOS uniquement
         os.system(f'echo -e "\033]0;{title_text}\007"')
-    # Pour iOS, le titre n'est pas modifiable via terminal
+    # Pour iOS (iSH ou autres), le titre n'est pas modifiable via terminal
 
 set_title("Co-Chan")
 
@@ -138,10 +148,20 @@ def check_disk_space(min_gb=1):
                 free_space_gb = 0
         except:
             free_space_gb = 0
-    elif s == "Darwin" and is_ios_device():
-        # iOS (iPhone/iPad)
+    elif is_ish_shell():
+        # iSH Shell (Alpine Linux sur iOS)
         try:
-            # Pour iOS, on vérifie l'espace disponible sur le répertoire home ou Documents
+            home_path = os.path.expanduser("~")
+            if os.path.exists(home_path):
+                total, used, free = shutil.disk_usage(home_path)
+                free_space_gb = free / (1024**3)
+            else:
+                free_space_gb = 0
+        except:
+            free_space_gb = 0
+    elif s == "Darwin" and is_ios_device():
+        # iOS (iPhone/iPad - autres apps)
+        try:
             home_path = os.path.expanduser("~")
             if os.path.exists(home_path):
                 total, used, free = shutil.disk_usage(home_path)
@@ -175,11 +195,17 @@ def get_download_path():
     elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
         # Android (Termux)
         return "/storage/emulated/0/Download/anime"
+    elif is_ish_shell():
+        # iSH Shell (Alpine Linux sur iOS)
+        # iSH stocke les fichiers dans le home de l'utilisateur
+        anime_path = os.path.join(os.path.expanduser("~"), "anime")
+        os.makedirs(anime_path, exist_ok=True)
+        return anime_path
     elif s == "Darwin" and is_ios_device():
-        # iOS (iPhone/iPad)
+        # iOS (iPhone/iPad - autres apps comme Pythonista)
         # Essayer plusieurs chemins possibles pour iOS
         possible_paths = [
-            os.path.expanduser("~/Documents/anime"),  # Pythonista, iSH
+            os.path.expanduser("~/Documents/anime"),  # Pythonista, a-shell
             os.path.expanduser("~/Downloads/anime"),  # Certaines apps
             os.path.join(os.getcwd(), "anime")        # Dossier local
         ]
@@ -652,7 +678,7 @@ def show_usage():
     print("  - macOS")
     print("  - Linux")
     print("  - Android (Termux)")
-    print("  - iOS (iPhone/iPad)")
+    print("  - iOS (iSH Shell, Pythonista, a-shell)")
 
 def main():
     # Vérification de la disponibilité des domaines
