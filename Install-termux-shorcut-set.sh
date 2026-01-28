@@ -206,9 +206,41 @@ EOF
 
     chmod +x ~/.shortcuts/copy_to_ipad.sh
     
+    # Créer un script pour supprimer tous les animes
+    cat << 'EOF' > ~/.shortcuts/remove_all_anime.sh
+#!/bin/sh
+# iSH Shell - Supprimer tous les animes de la VM
+echo "🗑️ Suppression de tous les animes..."
+echo ""
+echo "⚠️ ATTENTION : Cette action va supprimer TOUS les dossiers d'animes dans ~/anime/"
+echo ""
+printf "Êtes-vous sûr de vouloir continuer ? (o/n): "
+read -r confirm
+
+if [ "$confirm" = "o" ] || [ "$confirm" = "oui" ] || [ "$confirm" = "y" ] || [ "$confirm" = "yes" ]; then
+    if [ -d ~/anime ]; then
+        # Compter les fichiers avant suppression
+        count=$(find ~/anime -name "*.mp4" 2>/dev/null | wc -l)
+        
+        # Supprimer tout le contenu
+        rm -rf ~/anime/*
+        
+        echo "✅ $count vidéo(s) supprimée(s)"
+        echo "📁 Le dossier ~/anime/ a été vidé"
+    else
+        echo "ℹ️ Le dossier ~/anime/ n'existe pas"
+    fi
+else
+    echo "❌ Suppression annulée"
+fi
+EOF
+
+    chmod +x ~/.shortcuts/remove_all_anime.sh
+    
     echo ""
-    echo "✅ Script helper créé : ~/.shortcuts/copy_to_ipad.sh"
-    echo "   Pour copier les vidéos vers l'iPad, tapez : sh ~/.shortcuts/copy_to_ipad.sh"
+    echo "✅ Scripts helpers créés :"
+    echo "   • ~/.shortcuts/copy_to_ipad.sh - Pour copier les vidéos vers l'iPad"
+    echo "   • ~/.shortcuts/remove_all_anime.sh - Pour supprimer tous les animes"
 
 elif [ "$IS_TERMUX" = true ]; then
     # Version Termux
@@ -257,9 +289,11 @@ if [ "$IS_ISH" = true ] || [ "$IS_TERMUX" = true ]; then
             if ! grep -q "alias anime=" ~/.profile 2>/dev/null; then
                 echo 'alias anime="python3 ~/Anime-download.py"' >> ~/.profile
                 echo 'alias voiranime="sh ~/.shortcuts/copy_to_ipad.sh"' >> ~/.profile
+                echo 'alias rmanime="sh ~/.shortcuts/remove_all_anime.sh"' >> ~/.profile
                 echo "✅ Alias créés dans ~/.profile"
                 echo "   • anime           → Lance le téléchargeur"
                 echo "   • voiranime       → Copie les vidéos vers l'iPad"
+                echo "   • rmanime         → Supprime tous les animes de la VM"
                 echo ""
                 echo "   Redémarrez iSH puis utilisez ces commandes"
             else
@@ -302,6 +336,9 @@ if [ "$IS_ISH" = true ]; then
     echo ""
     echo "📂 Pour voir les vidéos sur iPad :"
     echo "   Utilisez la commande: voiranime"
+    echo ""
+    echo "🗑️ Pour supprimer tous les animes de la VM :"
+    echo "   Utilisez la commande: rmanime"
     
 elif [ "$IS_TERMUX" = true ]; then
     echo "📱 Configuration Termux (Android) :"
