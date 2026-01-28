@@ -167,6 +167,49 @@ cd ~
 python3 Anime-download.py
 EOF
 
+    # Créer un script helper pour copier les vidéos vers l'iPad
+    cat << 'EOF' > ~/.shortcuts/copy_to_ipad.sh
+#!/bin/sh
+# iSH Shell - Copier les vidéos vers l'iPad
+echo "📱 Copie des vidéos vers l'iPad..."
+echo ""
+echo "🔌 Montage du système de fichiers iOS..."
+echo "   Une fenêtre va s'ouvrir, choisissez un dossier (ex: 'Sur mon iPad')"
+echo ""
+
+# Créer le point de montage si nécessaire
+mkdir -p /mnt
+
+# Monter le système iOS
+mount -t ios dummy /mnt
+
+if [ $? -eq 0 ]; then
+    echo "✅ Système iOS monté"
+    echo ""
+    echo "📂 Copie des fichiers depuis ~/anime/ vers /mnt/ ..."
+    
+    # Compter les fichiers
+    count=$(ls -1 ~/anime/*.mp4 2>/dev/null | wc -l)
+    
+    if [ "$count" -gt 0 ]; then
+        cp ~/anime/*.mp4 /mnt/
+        echo "✅ $count vidéo(s) copiée(s) vers l'iPad"
+        echo ""
+        echo "📱 Ouvrez l'app Fichiers sur votre iPad pour voir les vidéos"
+    else
+        echo "⚠️ Aucune vidéo trouvée dans ~/anime/"
+    fi
+else
+    echo "❌ Erreur lors du montage du système iOS"
+fi
+EOF
+
+    chmod +x ~/.shortcuts/copy_to_ipad.sh
+    
+    echo ""
+    echo "✅ Script helper créé : ~/.shortcuts/copy_to_ipad.sh"
+    echo "   Pour copier les vidéos vers l'iPad, tapez : sh ~/.shortcuts/copy_to_ipad.sh"
+
 elif [ "$IS_TERMUX" = true ]; then
     # Version Termux
     cat << 'EOF' > ~/.shortcuts/anime_downloader.sh
@@ -213,8 +256,12 @@ if [ "$IS_ISH" = true ] || [ "$IS_TERMUX" = true ]; then
             # Pour iSH, utiliser .profile
             if ! grep -q "alias anime=" ~/.profile 2>/dev/null; then
                 echo 'alias anime="python3 ~/Anime-download.py"' >> ~/.profile
-                echo "✅ Alias créé dans ~/.profile"
-                echo "   Redémarrez iSH puis tapez: anime"
+                echo 'alias voiranime="sh ~/.shortcuts/copy_to_ipad.sh"' >> ~/.profile
+                echo "✅ Alias créés dans ~/.profile"
+                echo "   • anime           → Lance le téléchargeur"
+                echo "   • voiranime       → Copie les vidéos vers l'iPad"
+                echo ""
+                echo "   Redémarrez iSH puis utilisez ces commandes"
             else
                 echo "ℹ️ Alias déjà présent dans ~/.profile"
             fi
@@ -252,6 +299,17 @@ if [ "$IS_ISH" = true ]; then
     echo "   Vous pouvez créer un alias dans ~/.profile :"
     echo "   echo 'alias anime=\"python3 ~/Anime-download.py\"' >> ~/.profile"
     echo "   Puis redémarrer iSH et taper simplement: anime"
+    echo ""
+    echo "📂 Comment accéder aux vidéos téléchargées sur iPad :"
+    echo "   1. Monter le système iOS :"
+    echo "      mount -t ios dummy /mnt"
+    echo ""
+    echo "   2. Choisir un dossier (ex: 'Sur mon iPad') dans la fenêtre qui s'ouvre"
+    echo ""
+    echo "   3. Copier les vidéos vers l'iPad :"
+    echo "      cp ~/anime/* /mnt/"
+    echo ""
+    echo "   4. Les vidéos seront accessibles dans l'app Fichiers de l'iPad"
     
 elif [ "$IS_TERMUX" = true ]; then
     echo "📱 Configuration Termux (Android) :"
