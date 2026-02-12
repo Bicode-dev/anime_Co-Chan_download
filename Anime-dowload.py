@@ -63,6 +63,24 @@ def set_title(title_text):
 
 set_title("Co-Chan")
 
+def verify_domain_redirect(url):
+    """Vérifie que l'URL redirige bien vers un domaine anime-sama valide"""
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # Faire une requête HEAD pour vérifier la redirection sans télécharger tout le contenu
+        response = requests.head(url, timeout=10, headers=headers, allow_redirects=True)
+        
+        # Vérifier que l'URL finale contient "anime-sama"
+        final_url = response.url
+        if "anime-sama" in final_url and "anime-sama.pw" not in final_url:
+            return True, final_url
+        return False, final_url
+    except:
+        return False, None
+
 def get_active_domain():
     """Récupère le domaine actif depuis anime-sama.pw"""
     try:
@@ -82,20 +100,40 @@ def get_active_domain():
 
             if match:
                 base_domain = match.group(1)
-                full_url = f"{base_domain}/catalogue/"
-                print("✅")
-                print(f"✅ Serveur actif trouvé")
-                return full_url
+                
+                # Vérifier que l'URL redirige bien vers le bon domaine
+                print("🔄", end=" ")
+                sys.stdout.flush()
+                is_valid, redirected_url = verify_domain_redirect(base_domain)
+                
+                if is_valid:
+                    # Utiliser l'URL après redirection
+                    redirected_domain = redirected_url.split("/catalogue")[0] if "/catalogue" in redirected_url else redirected_url.rstrip("/")
+                    full_url = f"{redirected_domain}/catalogue/"
+                    print("✅")
+                    print(f"✅ Serveur actif trouvé")
+                    return full_url
+                else:
+                    print("⚠️")
+                    print(f"⚠️ L'URL trouvée ne redirige pas correctement")
             
+            # Fallback avec vérification de redirection
             pattern_fallback = r'href="(https?://anime-sama\.(?!pw)[a-z]+)"'
             match_fallback = re.search(pattern_fallback, response.text)
             
             if match_fallback:
                 base_domain = match_fallback.group(1)
-                full_url = f"{base_domain}/catalogue/"
-                print("✅")
-                print(f"✅ Serveur actif trouvé")
-                return full_url
+                
+                print("🔄", end=" ")
+                sys.stdout.flush()
+                is_valid, redirected_url = verify_domain_redirect(base_domain)
+                
+                if is_valid:
+                    redirected_domain = redirected_url.split("/catalogue")[0] if "/catalogue" in redirected_url else redirected_url.rstrip("/")
+                    full_url = f"{redirected_domain}/catalogue/"
+                    print("✅")
+                    print(f"✅ Serveur actif trouvé : {redirected_domain}")
+                    return full_url
 
         print("❌")
         print("❌ Impossible de trouver le serveur actif")
