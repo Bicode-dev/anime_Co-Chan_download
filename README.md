@@ -1,4 +1,4 @@
-se code et un téléchargeur d'anime qui extrait directement les anime depuis des serveur RUSSE bien sur il ne fonctionne pas avec tout les anime car il se serre de l'indexation de anime-sama donc si le lecteur sibnet n'est pas disponible comme lecteur sur anime-sama vous ne pourrai pas le télécharger. 
+Ce code est un téléchargeur d’anime qui extrait directement les contenus depuis des serveurs russes et d’autres sources. En cas de problème lié aux droits d’auteur, veuillez vous adresser directement à l’hébergeur.
 
 Français/French only
 
@@ -8,10 +8,6 @@ Français/French only
 📱termux📱 :
 
 `bash Install-termux-shorcut-set.sh`
-
-🍎ish-shell🍎 :
-
-`apk update && apk add bash python3 py3-pip git curl && curl -L -o Install-termux-shorcut-set.sh https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Install-termux-shorcut-set.sh && bash Install-termux-shorcut-set.sh`
 
 💻windows🖥️ :
 
