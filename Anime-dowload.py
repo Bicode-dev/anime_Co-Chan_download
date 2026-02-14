@@ -5,6 +5,7 @@ import sys
 import requests
 import re
 import time
+import random
 import importlib.util
 
 pil_available = importlib.util.find_spec("PIL") is not None
@@ -485,11 +486,9 @@ def count_downloaded_episodes_for_season(folder_path, target_season):
 def get_actual_total_episodes_for_season(url_list):
     """Récupère le nombre réel d'épisodes qui seront téléchargés pour une saison donnée"""
     episode_counter = 0
-    
     for url in url_list:
-        sibnet_links, vidmoly_links = extract_video_links(url)
-        episode_counter += len(sibnet_links) + len(vidmoly_links)
-    
+        links = extract_video_links(url)
+        episode_counter += len(links)
     return episode_counter
 
 def ask_for_starting_point(folder_name, seasons):
@@ -649,18 +648,100 @@ FolderType=Generic
     except Exception:
         pass
 
+def get_vidmoly_m3u8(video_id):
+    """Extrait l'URL m3u8 depuis vidmoly via le domaine .biz (sans navigateur)"""
+    session = requests.Session()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Sec-Fetch-Dest": "iframe",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "cross-site",
+        "Referer": "https://vidmoly.biz/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9",
+        "Connection": "keep-alive",
+        "Accept-Encoding": "identity",
+    }
+    try:
+        url = f"https://vidmoly.biz/embed-{video_id}.html"
+        resp = session.get(url, headers=headers, timeout=15)
+        text = resp.content.decode("utf-8", errors="ignore")
+        m3u8 = re.search(r'https?://[^\s"\']+\.m3u8[^\s"\']*', text)
+        if m3u8:
+            return m3u8.group(0)
+    except Exception as e:
+        print(f"⚠️ Erreur vidmoly m3u8 : {e}")
+    return None
+
+def classify_link(url):
+    """Retourne (link_type, link_value) si le lien est compatible, sinon None"""
+    if "sibnet" in url:
+        return ("sibnet", url)
+    elif "vidmoly" in url:
+        m = re.search(r"embed-([\w]+)\.html", url)
+        if m:
+            return ("vidmoly", m.group(1))
+    elif "sendvid" in url:
+        return ("sendvid", url)
+    return None
+
+def parse_eps_arrays(js_text):
+    """
+    Parse toutes les variables epsX du JS d'anime-sama.
+    Chaque epsX est un lecteur différent pouvant contenir des liens mixtes.
+    Retourne une liste de dicts avec total, compatibles et liens classifiés.
+    """
+    eps_blocks = re.findall(
+        r"var\s+eps\d+\s*=\s*\[(.*?)\]\s*;",
+        js_text,
+        re.DOTALL
+    )
+
+    results = []
+    for block in eps_blocks:
+        all_urls = re.findall(r"'(https?://[^']+)'", block)
+        if not all_urls:
+            continue
+
+        compatible = []
+        for url in all_urls:
+            classified = classify_link(url)
+            if classified:
+                compatible.append(classified)
+
+        results.append({
+            "total": len(all_urls),
+            "compatible": len(compatible),
+            "links": compatible
+        })
+
+    # Trier : 1) plus de compatibles, 2) plus de total
+    results.sort(key=lambda x: (x["compatible"], x["total"]), reverse=True)
+
+    # Si ex-aequo sur le podium → choisir au hasard parmi eux
+    if len(results) > 1:
+        best = results[0]
+        tied = [r for r in results if r["compatible"] == best["compatible"] and r["total"] == best["total"]]
+        if len(tied) > 1:
+            results[0] = random.choice(tied)
+    return results
+
 def extract_video_links(url):
+    """
+    Récupère le meilleur epsX depuis le JS anime-sama.
+    Choix : 1) plus de liens total, 2) plus de liens compatibles si égalité.
+    Retourne une liste de tuples (link_type, link_value).
+    """
     response = requests.get(url)
     if response.status_code != 200:
-        return [], []
-    
-    sibnet_pattern = r"(https://video\.sibnet\.ru/shell\.php\?videoid=\d+)"
-    vidmoly_pattern = r"(https://vidmoly\.to/embed/\w+)"
-    
-    sibnet_links = re.findall(sibnet_pattern, response.text)
-    vidmoly_links = re.findall(vidmoly_pattern, response.text)
-    
-    return sibnet_links, vidmoly_links
+        return []
+
+    eps_list = parse_eps_arrays(response.text)
+    if not eps_list:
+        return []
+
+    best = eps_list[0]
+    return best["links"]
 
 def copy_to_ipad_if_mounted(filename):
     """Copie automatiquement le fichier vers l'iPad si /mnt est monté (iSH)"""
@@ -756,11 +837,23 @@ def setup_ipad_mount():
         print("   Utilisez 'voiranime' plus tard pour les copier")
         print("")
 
-def download_video(link, filename, season, episode, max_episode):
+def download_video(link_type, link_value, filename, season, episode, max_episode):
     if not check_disk_space():
         print(f"⛔ Espace disque insuffisant. Arrêt du téléchargement pour [S{season} E{episode}/{max_episode}].")
         return
-    
+
+    # Résoudre l'URL finale selon le type
+    final_url = None
+
+    if link_type == "vidmoly":
+        m3u8 = get_vidmoly_m3u8(link_value)
+        if not m3u8:
+            print(f"⛔ Impossible d'extraire le m3u8 pour vidmoly ID {link_value}")
+            return
+        final_url = m3u8
+    else:
+        final_url = link_value
+
     ydl_opts = {
         "outtmpl": filename,
         "quiet": False,
@@ -773,19 +866,19 @@ def download_video(link, filename, season, episode, max_episode):
         "socket_timeout": 60,
         "retries": 15
     }
-    
+
     try:
         with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([link])
-        
+            ydl.download([final_url])
+
         # Sur iSH seulement : copier vers iPad si monté, puis nettoyer les anciens
         if os.path.exists(filename):
             copy_to_ipad_if_mounted(filename)
-            
+
             # Nettoyer les anciens épisodes sur l'iPad (seulement si copie auto activée)
             if is_ish_shell() and os.path.ismount("/mnt"):
                 cleanup_old_episodes(filename)
-            
+
     except Exception as e:
         sys.stdout.write("\r")
         sys.stdout.flush()
@@ -820,6 +913,11 @@ def show_usage():
     print("  - Linux")
     print("  - Android (Termux)")
     print("  - iOS (iSH Shell, Pythonista, a-shell)")
+    print()
+    print("Sources vidéo supportées:")
+    print("  - Sibnet")
+    print("  - Vidmoly (via extraction m3u8 automatique)")
+    print("  - Sendvid")
 
 def main():
     # Vérification de la disponibilité des domaines
@@ -902,8 +1000,8 @@ def main():
         all_links = []
 
         for url in url_list:
-            sibnet, vidmoly = extract_video_links(url)
-            all_links.extend(sibnet + vidmoly)
+            links = extract_video_links(url)
+            all_links.extend(links)
 
         total_episodes_in_season = len(all_links)
 
@@ -936,7 +1034,7 @@ def main():
 
         print(f"♾️ Téléchargement de la Saison {display_season.upper()} ({total_episodes_in_season} épisodes)")
 
-        for link in all_links:
+        for link_type, link_value in all_links:
             sys.stdout.write("🌐 Chargement")
             sys.stdout.flush()
             for _ in range(3):
@@ -946,7 +1044,7 @@ def main():
             sys.stdout.write("\r")
             sys.stdout.flush()
             
-            if check_http_403(link):
+            if link_type == "sibnet" and check_http_403(link_value):
                 continue
             
             download_dir = os.path.join(get_download_path(), folder_name)
@@ -956,7 +1054,7 @@ def main():
                 get_anime_image(anime_name_capitalized, download_dir)
             
             filename = os.path.join(download_dir, f"s{display_season}_e{episode_counter}.mp4")
-            download_video(link, filename, display_season, episode_counter, total_episodes_in_season)
+            download_video(link_type, link_value, filename, display_season, episode_counter, total_episodes_in_season)
             episode_counter += 1
 
 if __name__ == "__main__":
