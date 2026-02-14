@@ -10,7 +10,7 @@
 
 
 ---
-> plus d'info sur : [Site Web](https://bicode-dev.github.io/Co-Chan-Anime-Downloader-web/)
+> Plus d'info sur : [Site Web](https://bicode-dev.github.io/Co-Chan-Anime-Downloader-web/)
 ---
 
 > 🇫🇷 **Français uniquement**
