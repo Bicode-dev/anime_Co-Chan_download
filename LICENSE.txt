@@ -1,21 +1,107 @@
-MIT License
+Creative Commons Legal Code
+
+Attribution-NonCommercial-NoDerivatives 4.0 International
 
 Copyright (c) 2026 les jeux mathis
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+=======================================================================
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Creative Commons Corporation ("Creative Commons") is not a law firm and
+does not provide legal services or legal advice. Distribution of
+Creative Commons public licenses does not create a lawyer-client or
+other relationship. Creative Commons makes its licenses and related
+information available on an "as-is" basis. Creative Commons gives no
+warranties regarding its licenses, any material licensed under their
+terms and conditions, or any related information. Creative Commons
+disclaims all liability for damages resulting from their use to the
+fullest extent possible.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+=======================================================================
+
+CREATIVE COMMONS PUBLIC LICENSE
+ATTRIBUTION-NONCOMMERCIAL-NODERIVATIVES 4.0 INTERNATIONAL (CC BY-NC-ND 4.0)
+
+By exercising the Licensed Rights (defined below), You accept and agree
+to be bound by the terms and conditions of this Creative Commons
+Attribution-NonCommercial-NoDerivatives 4.0 International Public
+License ("Public License").
+
+Section 1 – Definitions.
+
+  a. Licensed Material means this software, documentation, and all
+     associated files authored by les jeux mathis.
+
+  b. Licensed Rights means the rights granted to You subject to the
+     terms and conditions of this Public License.
+
+  c. NonCommercial means not primarily intended for or directed towards
+     commercial advantage or monetary compensation.
+
+  d. You means the individual or entity exercising the Licensed Rights
+     under this Public License. "Your" has a corresponding meaning.
+
+Section 2 – Scope.
+
+  a. License grant. Subject to the terms and conditions of this Public
+     License, les jeux mathis hereby grants You a worldwide,
+     royalty-free, non-sublicensable, non-exclusive, irrevocable
+     license to:
+
+       1. PERSONAL USE ONLY — You may use the Licensed Material solely
+          for your own personal, private, and non-commercial purposes.
+
+       2. You may reproduce and share the Licensed Material, in whole
+          or in part, for personal use only, provided attribution is
+          given to les jeux mathis.
+
+  b. Restrictions. The license granted above is subject to the
+     following restrictions, which are strictly enforced:
+
+       1. NO COMMERCIAL USE — You may not use the Licensed Material
+          for commercial purposes, including but not limited to selling,
+          licensing, advertising, or any activity generating revenue.
+
+       2. NO DERIVATIVES — You may not remix, transform, adapt, modify,
+          translate, or build upon the Licensed Material in any way.
+
+       3. NO REDISTRIBUTION — You may not distribute, publish, broadcast,
+          or share the Licensed Material publicly or to third parties
+          without prior written permission from les jeux mathis.
+
+       4. NO SUBLICENSING — You may not sublicense the Licensed Material
+          or grant others rights to use it.
+
+       5. PERSONAL USE ONLY — Use is strictly limited to the individual
+          who obtained the Licensed Material. Use within organizations,
+          teams, schools, or companies is prohibited without authorization.
+
+Section 3 – Attribution.
+
+If You share the Licensed Material (with prior written permission only),
+You must:
+
+  a. Retain the following: "Copyright (c) 2026 les jeux mathis"
+  b. Indicate the material is licensed under CC BY-NC-ND 4.0
+  c. Provide a link to: https://creativecommons.org/licenses/by-nc-nd/4.0/
+  d. Not suggest that les jeux mathis endorses You or Your use.
+
+Section 4 – Disclaimer of Warranties and Limitation of Liability.
+
+THE LICENSED MATERIAL IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL LES JEUX MATHIS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY ARISING FROM THE USE OF THE LICENSED MATERIAL.
+
+Section 5 – Term and Termination.
+
+This license applies for as long as the copyright is in effect. Any
+breach of the terms of this license terminates Your rights automatically
+and immediately, without notice. les jeux mathis reserves the right to
+pursue legal action for any unauthorized use.
+
+=======================================================================
+
+For permissions beyond the scope of this license, contact les jeux mathis.
+
+Full license text: https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode
