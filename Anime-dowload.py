@@ -524,24 +524,31 @@ def check_http_403(url):
     time.sleep(20)
     return True
 
-def get_anime_image(anime_name, folder_name):
-    """Télécharge l'image de couverture depuis l'API Jikan"""
+def get_anime_image(anime_name, folder_name, formatted_url_name):
+    """Télécharge l'image de couverture depuis GitHub Anime-Sama, fallback Jikan"""
     try:
-        url_name = anime_name.replace(" ", "+")
-        url = f"https://api.jikan.moe/v4/anime?q={url_name}&limit=1"
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
+        # Tentative 1 : GitHub Anime-Sama
+        image_data = None
+        github_url = f"https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/{formatted_url_name}.jpg"
+        github_response = requests.get(github_url, timeout=10)
+        if github_response.status_code == 200:
+            image_data = github_response.content
+        else:
+            # Tentative 2 : fallback API Jikan
+            url_name = anime_name.replace(" ", "+")
+            jikan_url = f"https://api.jikan.moe/v4/anime?q={url_name}&limit=1"
+            jikan_response = requests.get(jikan_url, timeout=10)
+            jikan_response.raise_for_status()
+            data = jikan_response.json()
+            if not data["data"]:
+                return
+            image_url = data["data"][0]["images"]["jpg"]["large_image_url"]
+            image_response = requests.get(image_url, timeout=10)
+            image_response.raise_for_status()
+            image_data = image_response.content
 
-        if not data["data"]:
+        if not image_data:
             return
-
-        anime = data["data"][0]
-        image_url = anime["images"]["jpg"]["large_image_url"]
-
-        image_response = requests.get(image_url)
-        image_response.raise_for_status()
-        image_data = image_response.content
 
         jpg_path = os.path.join(folder_name, "cover.jpg")
         with open(jpg_path, 'wb') as f:
@@ -894,7 +901,7 @@ def main():
             os.makedirs(download_dir, exist_ok=True)
 
             if episode_counter == 1 and display_season == seasons[0][0]:
-                get_anime_image(anime_name_capitalized, download_dir)
+                get_anime_image(anime_name_capitalized, download_dir, formatted_url_name)
 
             filename = os.path.join(download_dir, f"s{display_season}_e{episode_counter}.mp4")
             download_video(link_type, link_value, filename, display_season, episode_counter, total_episodes_in_season)
