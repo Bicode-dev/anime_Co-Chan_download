@@ -1,4 +1,4 @@
-<img src="https://github.com/user-attachments/assets/1aa3b128-1344-4a8d-8959-ccef45922c1a" width="200"> Anime Downloader
+<img src="https://github.com/user-attachments/assets/1aa3b128-1344-4a8d-8959-ccef45922c1a" width="20"> Anime Downloader
 
 [![Python](https://img.shields.io/badge/Python-3.x-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android-green?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Bicode-dev/anime_Co-Chan_download)
