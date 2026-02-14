@@ -1,32 +1,46 @@
-Ce code est un téléchargeur d’anime qui extrait directement les contenus depuis des serveurs russes et d’autres sources. En cas de problème lié aux droits d’auteur, veuillez vous adresser directement à l’hébergeur.
+# Téléchargeur d'Anime 
 
-Français/French only
+Ce script est un téléchargeur d'anime qui extrait directement les contenus depuis des serveurs russes et d'autres sources. En cas de problème lié aux droits d'auteur, veuillez vous adresser directement à l'hébergeur.
 
+> **Français uniquement** — VF = Voix Françaises | VOSTFR = Sous-titres Français
 
-🌗Install🌓
+---
 
-📱termux📱 :
+## 🌗 Installation 🌓
 
-`bash Install-termux-shorcut-set.sh`
+### 📱 Termux (Android)
 
-💻windows🖥️ :
+```bash
+bash Install-termux-shortcut-set.sh
+```
 
-juste open `Setup.bat`
+### 💻 Windows
 
-`Voici un exemple d'utilisation du script en ligne de commande (non obligatoir on peut aussi juste l'ouvrir) :
+Ouvrez simplement `Setup.bat`
 
-Pour télécharger "One Piece" en VF :
+---
 
-python Anime-dowload.py "one piece" vf
+## 🚀 Utilisation
 
-Pour télécharger "Naruto" en VOSTFR :
+> L'utilisation en ligne de commande est optionnelle, vous pouvez aussi ouvrir directement le `.py`.
 
-python Anime-dowload.py naruto vostfr
+Télécharger *One Piece* en VF :
+```bash
+python Anime-download.py "one piece" vf
+```
 
-Pour afficher l'aide :
+Télécharger *Naruto* en VOSTFR :
+```bash
+python Anime-download.py naruto vostfr
+```
 
-python Anime-dowload.py --help` en ligne de commande ou simplement ouvrir le .py
+Afficher l'aide :
+```bash
+python Anime-download.py --help
+```
 
+---
 
+## ❓ Support
 
-pour tout question : [Serveur Discord](https://discord.com/invite/tv2EZEYbax)
+Pour toute question : [Serveur Discord](https://discord.com/invite/tv2EZEYbax)
