@@ -1,12 +1,22 @@
-# Téléchargeur d'Anime 
+# Anime Downloader
 
-Ce script est un téléchargeur d'anime qui extrait directement les contenus depuis des serveurs russes et d'autres sources. En cas de problème lié aux droits d'auteur, veuillez vous adresser directement à l'hébergeur.
+![Python](https://img.shields.io/badge/Python-3.x-blue?style=for-the-badge&logo=python&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android-green?style=for-the-badge&logo=windows&logoColor=white)
+![License](https://img.shields.io/badge/Droits-Hébergeur-red?style=for-the-badge)
+![Discord](https://img.shields.io/badge/Discord-Rejoindre-7289DA?style=for-the-badge&logo=discord&logoColor=white)
 
-> **Français uniquement** — VF = Voix Françaises | VOSTFR = Sous-titres Français
+> Ce script est un téléchargeur d'anime qui extrait directement les contenus depuis des serveurs russes et d'autres sources.
+> En cas de problème lié aux droits d'auteur, veuillez vous adresser directement à l'hébergeur.
 
 ---
 
-## 🌗 Installation 🌓
+> 🇫🇷 **Français uniquement**
+> - **VF** = Voix Françaises
+> - **VOSTFR** = Sous-titres Français
+
+---
+
+## 🌗 Installation
 
 ### 📱 Termux (Android)
 
@@ -14,7 +24,7 @@ Ce script est un téléchargeur d'anime qui extrait directement les contenus dep
 bash Install-termux-shortcut-set.sh
 ```
 
-### 💻 Windows
+### 🖥️ Windows
 
 Ouvrez simplement `Setup.bat`
 
@@ -22,25 +32,16 @@ Ouvrez simplement `Setup.bat`
 
 ## 🚀 Utilisation
 
-> L'utilisation en ligne de commande est optionnelle, vous pouvez aussi ouvrir directement le `.py`.
+> ℹ️ L'utilisation en ligne de commande est **optionnelle**, vous pouvez aussi ouvrir directement le `.py`.
 
-Télécharger *One Piece* en VF :
-```bash
-python Anime-download.py "one piece" vf
-```
-
-Télécharger *Naruto* en VOSTFR :
-```bash
-python Anime-download.py naruto vostfr
-```
-
-Afficher l'aide :
-```bash
-python Anime-download.py --help
-```
+| Commande | Description |
+|----------|-------------|
+| `python Anime-download.py "one piece" vf` | Télécharger *One Piece* en VF |
+| `python Anime-download.py naruto vostfr` | Télécharger *Naruto* en VOSTFR |
+| `python Anime-download.py --help` | Afficher l'aide |
 
 ---
 
 ## ❓ Support
 
-Pour toute question : [Serveur Discord](https://discord.com/invite/tv2EZEYbax)
+[![Discord](https://img.shields.io/badge/Rejoindre%20le%20serveur-Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/invite/tv2EZEYbax)
