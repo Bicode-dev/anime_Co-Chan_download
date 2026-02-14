@@ -7,7 +7,7 @@
 
 > Ce script est un téléchargeur d'anime qui extrait directement les contenus depuis des serveurs russes et d'autres sources.
 > En cas de problème lié aux droits d'auteur, veuillez vous adresser directement à l'hébergeur.
-> plus d'info sur : [Site WEB](https://github.com/Bicode-dev/anime_Co-Chan_download/releases/download/Co-Chan_(%E2%97%8F'%E2%97%A1'%E2%97%8F)/Co-Chan.exe)
+> plus d'info sur : [Site WEB]([https://github.com/Bicode-dev/anime_Co-Chan_download/releases/download/Co-Chan_(%E2%97%8F'%E2%97%A1'%E2%97%8F)/Co-Chan.exe](https://bicode-dev.github.io/Co-Chan-Anime-Downloader-web/))
 
 ---
 
