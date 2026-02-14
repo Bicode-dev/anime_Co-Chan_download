@@ -1,8 +1,8 @@
-# Anime Downloader
+🎌 Anime Downloader
 
 ![Python](https://img.shields.io/badge/Python-3.x-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android-green?style=for-the-badge&logo=windows&logoColor=white)
-![License](https://img.shields.io/badge/Droits-Hébergeur-red?style=for-the-badge)
+[![Download](https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Bicode-dev/anime_Co-Chan_download/releases/download/Co-Chan_(%E2%97%8F'%E2%97%A1'%E2%97%8F)/Co-Chan.exe)
 ![Discord](https://img.shields.io/badge/Discord-Rejoindre-7289DA?style=for-the-badge&logo=discord&logoColor=white)
 
 > Ce script est un téléchargeur d'anime qui extrait directement les contenus depuis des serveurs russes et d'autres sources.
@@ -26,7 +26,7 @@ bash Install-termux-shortcut-set.sh
 
 ### 🖥️ Windows
 
-Ouvrez simplement `Setup.bat`
+Ouvrez simplement `Setup.bat` ou ouvrez le .exe
 
 ---
 
