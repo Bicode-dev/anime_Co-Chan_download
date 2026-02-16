@@ -722,17 +722,24 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
 
     os.makedirs(temp_dir, exist_ok=True)
 
-    # Configuration yt-dlp avec format flexible
-    # Essaie d'abord mp4 avec audio compatible, puis fallback sur le meilleur disponible
+    # Vidmoly = flux HLS (m3u8) : pistes vidéo et audio séparées dans le stream
+    # → on essaie toutes les combinaisons pour trouver la meilleure qualité
+    # Sibnet / Sendvid = fichier déjà muxé (vidéo+audio dans 1 seul fichier)
+    # → on cible directement mp4+m4a, et si ça marche pas on prend le meilleur dispo
+    if link_type == "vidmoly":
+        video_format = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best"
+    else:
+        # sibnet, sendvid (et tout autre lecteur)
+        # sendvid utilise généralement AAC (m4a), le fallback /best couvre les autres cas
+        video_format = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
+
     ydl_opts = {
         "outtmpl": filename,
         "quiet": False,
         "ignoreerrors": True,
         "progress_hooks": [lambda d: progress_hook(d, season, episode, max_episode)],
         "no_warnings": True,
-        # Format flexible qui accepte différents codecs audio
-        # Essaie mp4+m4a d'abord, puis mp4+tout audio, puis meilleur format
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best",
+        "format": video_format,
         "merge_output_format": "mp4",
         "logger": MyLogger(),
         "socket_timeout": 60,
