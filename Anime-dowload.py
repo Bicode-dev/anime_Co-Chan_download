@@ -7,10 +7,6 @@ import re
 import time
 import random
 import importlib.util
-import zipfile
-import tarfile
-import tempfile
-from pathlib import Path
 
 pil_available = importlib.util.find_spec("PIL") is not None
 if pil_available:
@@ -18,197 +14,6 @@ if pil_available:
     import io
 
 from yt_dlp import YoutubeDL
-
-def get_ffmpeg_dir():
-    """Retourne le dossier où ffmpeg doit être stocké dans le temp"""
-    temp_dir = tempfile.gettempdir()
-    ffmpeg_dir = os.path.join(temp_dir, "anime-dl", "ffmpeg")
-    return ffmpeg_dir
-
-def download_and_extract_ffmpeg():
-    """Télécharge ffmpeg automatiquement pour toutes les plateformes"""
-    system = platform.system()
-    ffmpeg_dir = get_ffmpeg_dir()
-    
-    # Noms des exécutables selon la plateforme
-    if system == "Windows":
-        ffmpeg_exe = os.path.join(ffmpeg_dir, "ffmpeg.exe")
-        ffprobe_exe = os.path.join(ffmpeg_dir, "ffprobe.exe")
-    else:
-        ffmpeg_exe = os.path.join(ffmpeg_dir, "ffmpeg")
-        ffprobe_exe = os.path.join(ffmpeg_dir, "ffprobe")
-    
-    # Si ffmpeg existe déjà et fonctionne, on ne fait rien
-    if os.path.exists(ffmpeg_exe) and os.path.exists(ffprobe_exe):
-        try:
-            import subprocess
-            subprocess.run([ffmpeg_exe, "-version"], capture_output=True, check=True, timeout=5)
-            return ffmpeg_dir  # Déjà installé et fonctionnel
-        except:
-            # ffmpeg corrompu, on le re-télécharge
-            shutil.rmtree(ffmpeg_dir, ignore_errors=True)
-    
-    print("⚙️ Initialisation...")
-    sys.stdout.flush()
-    
-    # Créer le dossier
-    os.makedirs(ffmpeg_dir, exist_ok=True)
-    
-    try:
-        if system == "Windows":
-            # Windows : Téléchargement depuis GitHub BtbN
-            ffmpeg_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-            
-            response = requests.get(ffmpeg_url, stream=True, timeout=30)
-            response.raise_for_status()
-            
-            zip_path = os.path.join(ffmpeg_dir, "ffmpeg.zip")
-            total_size = int(response.headers.get('content-length', 0))
-            
-            # Téléchargement silencieux avec barre simple
-            with open(zip_path, 'wb') as f:
-                downloaded = 0
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total_size > 0:
-                            percent = int((downloaded / total_size) * 100)
-                            sys.stdout.write(f"\r⚙️ Initialisation... {percent}%")
-                            sys.stdout.flush()
-            
-            # Extraction
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                for file in zip_ref.namelist():
-                    if file.endswith('bin/ffmpeg.exe') or file.endswith('bin/ffprobe.exe'):
-                        zip_ref.extract(file, ffmpeg_dir)
-                        extracted_path = os.path.join(ffmpeg_dir, file)
-                        target_path = os.path.join(ffmpeg_dir, os.path.basename(file))
-                        shutil.move(extracted_path, target_path)
-            
-            # Nettoyage
-            os.remove(zip_path)
-            for root, dirs, files in os.walk(ffmpeg_dir):
-                for d in dirs:
-                    if d.startswith('ffmpeg-'):
-                        shutil.rmtree(os.path.join(root, d), ignore_errors=True)
-        
-        elif system == "Darwin":
-            # macOS : Téléchargement depuis evermeet.cx
-            import subprocess
-            
-            # Télécharger ffmpeg
-            ffmpeg_url = "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip"
-            response = requests.get(ffmpeg_url, stream=True, timeout=30)
-            response.raise_for_status()
-            
-            zip_path = os.path.join(ffmpeg_dir, "ffmpeg.zip")
-            total_size = int(response.headers.get('content-length', 0))
-            
-            with open(zip_path, 'wb') as f:
-                downloaded = 0
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total_size > 0:
-                            percent = int((downloaded / total_size) * 100)
-                            sys.stdout.write(f"\r⚙️ Initialisation... {percent}%")
-                            sys.stdout.flush()
-            
-            # Extraire et rendre exécutable
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(ffmpeg_dir)
-            os.chmod(ffmpeg_exe, 0o755)
-            os.remove(zip_path)
-            
-            # Télécharger ffprobe
-            ffprobe_url = "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
-            response = requests.get(ffprobe_url, stream=True, timeout=30)
-            response.raise_for_status()
-            
-            zip_path = os.path.join(ffmpeg_dir, "ffprobe.zip")
-            with open(zip_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(ffmpeg_dir)
-            os.chmod(ffprobe_exe, 0o755)
-            os.remove(zip_path)
-        
-        elif system == "Linux":
-            is_termux = "ANDROID_STORAGE" in os.environ
-            
-            if is_termux:
-                # Termux : installation via pkg
-                import subprocess
-                try:
-                    subprocess.run(["pkg", "install", "-y", "ffmpeg"], check=True, capture_output=True)
-                    # Vérifier que ffmpeg est maintenant dans le PATH
-                    subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True, timeout=5)
-                    sys.stdout.write("\r⚙️ Initialisation... Terminée\n")
-                    sys.stdout.flush()
-                    return "system"  # Indique qu'on utilise ffmpeg système
-                except:
-                    raise Exception("Installation via pkg échouée")
-            else:
-                # Linux : Téléchargement depuis johnvansickle.com
-                import tarfile
-                
-                # Détecter l'architecture
-                arch = platform.machine()
-                if arch == "x86_64" or arch == "AMD64":
-                    build = "amd64"
-                elif arch == "aarch64" or arch == "arm64":
-                    build = "arm64"
-                elif "arm" in arch.lower():
-                    build = "armhf"
-                else:
-                    build = "amd64"  # Fallback
-                
-                ffmpeg_url = f"https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-{build}-static.tar.xz"
-                
-                response = requests.get(ffmpeg_url, stream=True, timeout=30)
-                response.raise_for_status()
-                
-                tar_path = os.path.join(ffmpeg_dir, "ffmpeg.tar.xz")
-                total_size = int(response.headers.get('content-length', 0))
-                
-                with open(tar_path, 'wb') as f:
-                    downloaded = 0
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            if total_size > 0:
-                                percent = int((downloaded / total_size) * 100)
-                                sys.stdout.write(f"\r⚙️ Initialisation... {percent}%")
-                                sys.stdout.flush()
-                
-                # Extraire
-                with tarfile.open(tar_path, 'r:xz') as tar_ref:
-                    for member in tar_ref.getmembers():
-                        if member.name.endswith('/ffmpeg') or member.name.endswith('/ffprobe'):
-                            member.name = os.path.basename(member.name)
-                            tar_ref.extract(member, ffmpeg_dir)
-                
-                # Rendre exécutables
-                os.chmod(ffmpeg_exe, 0o755)
-                os.chmod(ffprobe_exe, 0o755)
-                
-                # Nettoyage
-                os.remove(tar_path)
-        
-        sys.stdout.write("\r⚙️ Initialisation... Terminée\n")
-        sys.stdout.flush()
-        return ffmpeg_dir
-        
-    except Exception as e:
-        sys.stdout.write("\r⚙️ Initialisation... Ignorée\n")
-        sys.stdout.flush()
-        return None
 
 class MyLogger:
     def debug(self, msg):
@@ -904,7 +709,6 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
 
     # Dossier temp nommé d'après l'anime
     import tempfile
-    import subprocess
     anime_folder_name = os.path.basename(os.path.dirname(filename))
     is_termux = platform.system() == "Linux" and "ANDROID_STORAGE" in os.environ
 
@@ -918,76 +722,23 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
 
     os.makedirs(temp_dir, exist_ok=True)
 
-    # Téléchargement/installation automatique de ffmpeg pour toutes les plateformes
-    has_ffmpeg = False
-    ffmpeg_path = None
-    
-    # Télécharge/installe ffmpeg automatiquement
-    ffmpeg_dir = download_and_extract_ffmpeg()
-    
-    if ffmpeg_dir == "system":
-        # Termux : ffmpeg installé dans le système via pkg
-        has_ffmpeg = True
-        ffmpeg_path = "ffmpeg"
-    elif ffmpeg_dir:
-        # Autres plateformes : ffmpeg téléchargé dans le dossier temp
-        if platform.system() == "Windows":
-            ffmpeg_path = os.path.join(ffmpeg_dir, "ffmpeg.exe")
-        else:
-            ffmpeg_path = os.path.join(ffmpeg_dir, "ffmpeg")
-        
-        if os.path.exists(ffmpeg_path):
-            has_ffmpeg = True
-    
-    # Fallback : cherche dans le PATH système si le téléchargement a échoué
-    if not has_ffmpeg:
-        try:
-            import subprocess
-            subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True, timeout=5)
-            has_ffmpeg = True
-            ffmpeg_path = "ffmpeg"
-        except:
-            pass
-
-    # Configuration yt-dlp adaptée selon disponibilité de ffmpeg
-    if has_ffmpeg:
-        # AVEC ffmpeg : conversion audio garantie en AAC
-        ydl_opts = {
-            "outtmpl": filename,
-            "quiet": False,
-            "ignoreerrors": True,
-            "progress_hooks": [lambda d: progress_hook(d, season, episode, max_episode)],
-            "no_warnings": True,
-            "format": "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best",
-            "merge_output_format": "mp4",
-            "logger": MyLogger(),
-            "socket_timeout": 60,
-            "retries": 15,
-            "paths": {"temp": temp_dir},
-            # Spécifie le chemin ffmpeg si bundled
-            "ffmpeg_location": os.path.dirname(ffmpeg_path) if ffmpeg_path != "ffmpeg" else None,
-            # Conversion audio en AAC via ffmpeg
-            "postprocessor_args": {
-                "ffmpeg": ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k"]
-            },
-        }
-    else:
-        # SANS ffmpeg : sélection de format optimisée
-        ydl_opts = {
-            "outtmpl": filename,
-            "quiet": False,
-            "ignoreerrors": True,
-            "progress_hooks": [lambda d: progress_hook(d, season, episode, max_episode)],
-            "no_warnings": True,
-            # Format multi-fallback pour compatibilité maximale
-            "format": "(bestvideo[ext=mp4]+bestaudio[ext=m4a])/(bestvideo[ext=mp4]+bestaudio[acodec=aac])/(bestvideo[ext=mp4]+bestaudio)/(best[ext=mp4])/(best)",
-            "merge_output_format": "mp4",
-            "logger": MyLogger(),
-            "socket_timeout": 60,
-            "retries": 15,
-            "paths": {"temp": temp_dir},
-            "prefer_free_formats": False,
-        }
+    # Configuration yt-dlp avec format flexible
+    # Essaie d'abord mp4 avec audio compatible, puis fallback sur le meilleur disponible
+    ydl_opts = {
+        "outtmpl": filename,
+        "quiet": False,
+        "ignoreerrors": True,
+        "progress_hooks": [lambda d: progress_hook(d, season, episode, max_episode)],
+        "no_warnings": True,
+        # Format flexible qui accepte différents codecs audio
+        # Essaie mp4+m4a d'abord, puis mp4+tout audio, puis meilleur format
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best",
+        "merge_output_format": "mp4",
+        "logger": MyLogger(),
+        "socket_timeout": 60,
+        "retries": 15,
+        "paths": {"temp": temp_dir},
+    }
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
