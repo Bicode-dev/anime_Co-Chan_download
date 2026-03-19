@@ -895,7 +895,10 @@ def ask_for_starting_point(folder_name, seasons):
             "POINT DE DÉPART"
         )
 
-        if idx in (0, -1):
+        if idx == -1:
+            return None, None, None, None
+
+        if idx == 0:
             ConsoleUI.info("Téléchargement de tous les épisodes")
             return 0, 0, False, False
 
@@ -1346,6 +1349,9 @@ def main():
         ConsoleUI.sep()
 
     start_season, start_episode, only_season, only_episode = ask_for_starting_point(folder_name, seasons)
+
+    if start_season is None:
+        return
 
     # ── Boucle de téléchargement — logique Co-chan.py (fallback multi-lecteur) ─
     for display_season, url_list in seasons:
