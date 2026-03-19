@@ -39,9 +39,9 @@ Ouvrez simplement `Setup.bat` ou ouvrez le .exe
 
 | Commande | Description |
 |----------|-------------|
-| `python Anime-download.py "one piece" vf` | Télécharger *One Piece* en VF |
-| `python Anime-download.py naruto vostfr` | Télécharger *Naruto* en VOSTFR |
-| `python Anime-download.py --help` | Afficher l'aide |
+| `python Co-chan.py "one piece" vf` | Télécharger *One Piece* en VF |
+| `python Co-chan.py naruto vostfr` | Télécharger *Naruto* en VOSTFR |
+| `python Co-chan.py --help` | Afficher l'aide |
 
 ---
 
