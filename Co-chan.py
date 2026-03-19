@@ -1,13 +1,16 @@
+import importlib.util
+import io
 import os
 import platform
+import random
+import re
 import shutil
 import sys
-import requests
-import re
-import time
-import random
-import importlib.util
 import tempfile
+import time
+
+import requests
+from yt_dlp import YoutubeDL
 
 try:
     import ctypes
@@ -81,11 +84,18 @@ class ConsoleUI:
     @staticmethod
     def display_len(s):
         count = 0
-        for ch in s:
-            cp = ord(ch)
+        i = 0
+        while i < len(s):
+            cp = ord(s[i])
+            # Saut des modificateurs qui ne prennent pas de place visuelle
             if cp in (0xFE0E, 0xFE0F, 0x200D, 0x20E3):
+                i += 1
                 continue
-            if 0x0300 <= cp <= 0x036F:
+            if 0x0300 <= cp <= 0x036F:  # diacritiques combinants
+                i += 1
+                continue
+            if 0x1F3FB <= cp <= 0x1F3FF:  # modificateurs de teinte de peau
+                i += 1
                 continue
             is_emoji = (0x1F000 <= cp <= 0x1FFFF or 0x2600 <= cp <= 0x27BF
                         or 0x2B00 <= cp <= 0x2BFF)
@@ -94,8 +104,30 @@ class ConsoleUI:
             is_hangul = 0xAC00 <= cp <= 0xD7AF
             if is_emoji or is_cjk or is_hangul:
                 count += 2
+                # Consommer les caractères suivants liés par ZWJ (émoji composé)
+                # Ex: 👨‍👩‍👧 = 3 emojis + 2 ZWJ → compte comme 2, pas 6
+                j = i + 1
+                while j < len(s):
+                    ncp = ord(s[j])
+                    if ncp == 0x200D:  # ZWJ : lier au prochain emoji
+                        j += 1
+                        continue
+                    if ncp in (0xFE0E, 0xFE0F, 0x20E3):  # variation/keycap
+                        j += 1
+                        continue
+                    if 0x1F3FB <= ncp <= 0x1F3FF:  # teinte de peau
+                        j += 1
+                        continue
+                    if (0x1F000 <= ncp <= 0x1FFFF or 0x2600 <= ncp <= 0x27BF
+                            or 0x2B00 <= ncp <= 0x2BFF):
+                        # Emoji suivant dans la séquence ZWJ : skip sans compter
+                        j += 1
+                        continue
+                    break
+                i = j
             else:
                 count += 1
+                i += 1
         return count
 
     @staticmethod
@@ -178,10 +210,14 @@ class ConsoleUI:
                 key = msvcrt.getch()
                 if key == b'\xe0':
                     key = msvcrt.getch()
-                    if key == b'H': return 'UP'
-                    if key == b'P': return 'DOWN'
-                elif key == b'\r': return 'ENTER'
-                elif key == b'\x1b': return 'ESC'
+                    if key == b'H':
+                        return 'UP'
+                    if key == b'P':
+                        return 'DOWN'
+                elif key == b'\r':
+                    return 'ENTER'
+                elif key == b'\x1b':
+                    return 'ESC'
         elif tty and termios and _select:
             fd = sys.stdin.fileno()
             try:
@@ -195,10 +231,13 @@ class ConsoleUI:
                     if ch == '\x1b':
                         if _select.select([sys.stdin], [], [], 0.05)[0]:
                             more = sys.stdin.read(2)
-                            if more == '[A': return 'UP'
-                            if more == '[B': return 'DOWN'
+                            if more == '[A':
+                                return 'UP'
+                            if more == '[B':
+                                return 'DOWN'
                         return 'ESC'
-                    if ch in ('\r', '\n'): return 'ENTER'
+                    if ch in ('\r', '\n'):
+                        return 'ENTER'
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_attr)
         return None
@@ -310,7 +349,7 @@ class SimpleUI:
             print()
             for i, opt in enumerate(options, 1):
                 print(f"  [{i}]  {opt}")
-            print(f"  [0]  Retour")
+            print("  [0]  Retour")
             print()
             try:
                 raw = input("  Choix : ").strip()
@@ -378,26 +417,30 @@ UI = SimpleUI if IS_ANDROID else ConsoleUI
 
 # ── Dépendances optionnelles ──────────────────────────────────────────────────
 pil_available = importlib.util.find_spec("PIL") is not None
+Image = None  # will be replaced by actual class if PIL is available
 if pil_available:
-    from PIL import Image, ImageOps
-    import io
-
-from yt_dlp import YoutubeDL
+    from PIL import Image  # noqa: F811
 
 
 # ── Loggers yt-dlp ────────────────────────────────────────────────────────────
 class _SilentLogger:
     """Absorbe tous les messages de yt-dlp (PC)."""
-    def debug(self, msg): pass
-    def warning(self, msg): pass
-    def error(self, msg): pass
+    def debug(self, msg):
+        pass
+    def warning(self, msg):
+        pass
+    def error(self, msg):
+        pass
 
 
 class _AndroidLogger:
     """Affiche les erreurs yt-dlp sur Android."""
-    def debug(self, msg): pass
-    def warning(self, msg): pass
-    def error(self, msg): print(msg)
+    def debug(self, msg):
+        pass
+    def warning(self, msg):
+        pass
+    def error(self, msg):
+        print(msg)
 
 
 # ── Utilitaires plateforme ────────────────────────────────────────────────────
@@ -470,13 +513,13 @@ def get_active_domain():
         UI.error("Impossible de trouver le serveur actif.")
         UI.warn("Fermeture automatique dans 10 secondes...")
         time.sleep(10)
-        exit(1)
+        sys.exit(1)
 
     except Exception as e:
         UI.error(f"Erreur lors de la récupération du serveur : {e}")
         UI.warn("Fermeture automatique dans 10 secondes...")
         time.sleep(10)
-        exit(1)
+        sys.exit(1)
 
 
 def check_domain_availability():
@@ -487,12 +530,12 @@ def check_domain_availability():
 def check_disk_space(min_gb=1):
     s = platform.system()
     if s == "Windows":
-        total_c, used_c, free_c = shutil.disk_usage("C:\\")
+        _, _, free_c = shutil.disk_usage("C:\\")
         if free_c / (1024**2) < 100:
             print(f"⚠️ Espace insuffisant sur C: ({free_c / (1024**2):.0f} Mo disponibles)")
             return False
         current_drive = os.path.splitdrive(os.getcwd())[0] + "\\"
-        total, used, free = shutil.disk_usage(current_drive)
+        _, _, free = shutil.disk_usage(current_drive)
         free_space_gb = free / (1024**3)
     elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
         try:
@@ -514,7 +557,7 @@ def check_disk_space(min_gb=1):
         try:
             home_path = os.path.expanduser("~")
             if os.path.exists(home_path):
-                total, used, free = shutil.disk_usage(home_path)
+                _, _, free = shutil.disk_usage(home_path)
                 free_space_gb = free / (1024**3)
             else:
                 free_space_gb = 0
@@ -542,10 +585,10 @@ def progress_hook(d, season, episode, max_episode):
 def get_download_path():
     s = platform.system()
     if s == "Windows":
-        return os.path.join(os.getcwd())
-    elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
+        return os.getcwd()
+    if s == "Linux" and "ANDROID_STORAGE" in os.environ:
         return "/storage/emulated/0/Download/anime"
-    elif s == "Darwin" and is_ios_device():
+    if s == "Darwin" and is_ios_device():
         for path in [
             os.path.expanduser("~/Documents/anime"),
             os.path.expanduser("~/Downloads/anime"),
@@ -558,10 +601,9 @@ def get_download_path():
             except Exception:
                 continue
         return os.path.join(os.getcwd(), "anime")
-    elif s == "Darwin":
+    if s == "Darwin":
         return os.path.join(os.path.expanduser("~"), "Downloads", "anime")
-    else:
-        return os.path.join(os.path.expanduser("~"), "Downloads", "anime")
+    return os.path.join(os.path.expanduser("~"), "Downloads", "anime")
 
 
 # ── Formatage ─────────────────────────────────────────────────────────────────
@@ -598,7 +640,7 @@ def check_available_languages(base_url, name):
     for lang in all_languages:
         for kind in ["saison1", "film"]:
             try:
-                r = requests.get(f"{base_url}{name}/{kind}/{lang}/episodes.js")
+                r = requests.get(f"{base_url}{name}/{kind}/{lang}/episodes.js", timeout=5)
                 if r.status_code == 200 and r.text.strip():
                     available.append(lang)
                     break
@@ -684,11 +726,11 @@ def check_seasons(base_url, name, language):
 def custom_sort_key(x):
     if isinstance(x, str) and x.isdigit():
         return (0, int(x))
-    elif isinstance(x, str) and 'hs' in x:
+    if isinstance(x, str) and 'hs' in x:
         return (0, int(x.replace('hs', '')) + 0.5)
-    elif x == "film":
+    if x == "film":
         return (1, 0)
-    elif x == "oav":
+    if x == "oav":
         return (2, 0)
     return (3, str(x))
 
@@ -717,7 +759,10 @@ def resolve_season_choices(season_info):
                     ["🎬  Version Normale", "⭐  Version HS (Hors-Série)"],
                     f"SAISON {key} — CHOISIR",
                 )
-                if idx in (0, -1):
+                if idx == -1:
+                    chosen_url = info["normal"]
+                    display = key
+                elif idx == 0:
                     chosen_url = info["normal"]
                     display = key
                 else:
@@ -756,12 +801,12 @@ def find_last_downloaded_episode(folder_path):
         n = s.replace('hs', '')
         is_hs = 'hs' in s
         if n.isdigit():
-            return (0, int(n), is_hs, e)
-        elif s == "film":
-            return (1, 0, False, e)
-        elif s == "oav":
-            return (2, 0, False, e)
-        return (3, str(s), is_hs, e)
+            return (0, int(n), int(is_hs), e)
+        if s == "film":
+            return (1, 0, 0, e)
+        if s == "oav":
+            return (2, 0, 0, e)
+        return (3, 0, int(is_hs), e)
 
     episodes.sort(key=sort_key, reverse=True)
     return episodes[0]
@@ -853,7 +898,7 @@ def ask_for_starting_point(folder_name, seasons):
             total_in_season = get_actual_total_episodes_for_season(season_urls[0]) if season_urls else 0
             ConsoleUI.info(f"Épisodes téléchargés pour S{last_season} : {downloaded_count}/{total_in_season}")
 
-            if total_in_season > 0 and downloaded_count >= total_in_season:
+            if 0 < total_in_season <= downloaded_count:
                 ConsoleUI.success(f"Tous les épisodes de la saison {last_season} sont déjà téléchargés !")
                 season_keys = [d for d, _ in seasons]
                 if last_season in season_keys:
@@ -865,8 +910,9 @@ def ask_for_starting_point(folder_name, seasons):
                              "⏮  Rester sur la saison actuelle"],
                             "SAISON COMPLÈTE"
                         )
-                        if idx in (0, -1):
+                        if idx == 0:
                             return next_season, 1, False, False
+                        # idx == 1 ou ESC (-1) → rester, on continue vers le menu principal
                     else:
                         ConsoleUI.success("🎉 Tous les épisodes disponibles ont été téléchargés !")
                         idx = ConsoleUI.navigate(
@@ -875,8 +921,7 @@ def ask_for_starting_point(folder_name, seasons):
                         )
                         if idx == 0:
                             return 0, 0, False, False
-                        else:
-                            sys.exit(0)
+                        sys.exit(0)
             else:
                 idx = ConsoleUI.navigate(
                     [f"▶  Reprendre depuis S{last_season} E{last_episode}",
@@ -951,13 +996,16 @@ def check_http_403(url):
         try:
             response = requests.get(url, timeout=10)
             if response.status_code == 403:
-                print(f"⛔ Tentative {attempt+1} échouée : Sibnet a renvoyé un code 403. Nouvelle tentative, veuillez patienter.")
+                print(
+                    f"⛔ Tentative {attempt+1} échouée : Sibnet a renvoyé un code 403. "
+                    "Nouvelle tentative, veuillez patienter."
+                )
                 time.sleep(10)
             else:
                 return False
         except requests.exceptions.RequestException as e:
-            print(f"⛔ Erreur de connexion : {e}")
-            return False
+            print(f"⛔ Erreur réseau tentative {attempt+1} : {e}. Nouvelle tentative...")
+            time.sleep(5)
     print("⛔ Sibnet vous a temporairement banni, veuillez réessayer dans un maximum de 2 jours.")
     time.sleep(20)
     return True
@@ -1010,7 +1058,7 @@ def get_anime_image(anime_name, folder_name, formatted_url_name):
                 os.system(f'attrib +h "{ico_path}"')
             absolute_ico_path = os.path.abspath(ico_path)
             desktop_ini_path = os.path.join(folder_name, "desktop.ini")
-            with open(desktop_ini_path, "w") as ini_file:
+            with open(desktop_ini_path, "w", encoding="utf-8") as ini_file:
                 ini_file.write(f"""[.ShellClassInfo]
 IconResource={absolute_ico_path},0
 [ViewState]
@@ -1058,11 +1106,11 @@ def get_vidmoly_m3u8(video_id):
 def classify_link(url):
     if "sibnet" in url:
         return ("sibnet", url)
-    elif "vidmoly" in url:
+    if "vidmoly" in url:
         m = re.search(r"embed-([\w]+)\.html", url)
         if m:
             return ("vidmoly", m.group(1))
-    elif "sendvid" in url:
+    if "sendvid" in url:
         return ("sendvid", url)
     return None
 
@@ -1131,7 +1179,7 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
     ydl_opts = {
         "outtmpl":             filename,
         "quiet":               True,
-        "ignoreerrors":        True,
+        "ignoreerrors":        False,
         "no_warnings":         True,
         "noprogress":          False,
         "progress_hooks":      [lambda d: progress_hook(d, season, episode, max_episode)],
@@ -1219,7 +1267,7 @@ def main():
             UI.error(f"L'anime '{anime_name_capitalized}' est introuvable.")
             UI.warn("Vérifiez l'orthographe ou essayez le nom japonais.")
             time.sleep(5)
-            exit(1)
+            sys.exit(1)
         UI.success(f"Anime '{anime_name_capitalized}' trouvé !")
 
     # ── Mode interactif ───────────────────────────────────────────────────────
@@ -1309,7 +1357,7 @@ def main():
                         selected_language = "vostfr"
                     break
 
-                elif choice == 1:
+                if choice == 1:
                     ConsoleUI.clear()
                     ConsoleUI.print_logo()
                     show_usage()
@@ -1318,19 +1366,18 @@ def main():
                     except (EOFError, OSError):
                         pass
                     continue
-                else:
-                    ConsoleUI.result_screen([
-                        f"  {ConsoleUI.CYAN}👋  Merci d'avoir utilisé Co-Chan !{ConsoleUI.RESET}",
-                        "  🌸  À bientôt !",
-                    ], pause=False)
-                    time.sleep(1)
-                    sys.exit(0)
+                ConsoleUI.result_screen([
+                    f"  {ConsoleUI.CYAN}👋  Merci d'avoir utilisé Co-Chan !{ConsoleUI.RESET}",
+                    "  🌸  À bientôt !",
+                ], pause=False)
+                time.sleep(1)
+                sys.exit(0)
 
     folder_name = format_folder_name(anime_name_capitalized, selected_language)
 
     if not check_disk_space():
         UI.error("Espace disque insuffisant. Libérez de l'espace et réessayez.")
-        exit(1)
+        sys.exit(1)
 
     if not IS_ANDROID:
         ConsoleUI.clear()
@@ -1371,7 +1418,7 @@ def main():
 
         current_eps_array_index   = 0
         all_links                 = all_eps_arrays[current_eps_array_index]
-        total_episodes_in_season  = len(all_links)
+        total_episodes_in_season  = max(len(arr) for arr in all_eps_arrays)
 
         if total_episodes_in_season == 0:
             continue
@@ -1386,7 +1433,7 @@ def main():
                 if current_index < start_index:
                     print(f"⏭️ Saison {display_season.upper()} ignorée (avant S{start_season})")
                     continue
-                elif current_index == start_index and start_episode > 1:
+                if current_index == start_index and start_episode > 1:
                     episode_counter = start_episode
                     if only_episode:
                         print(f"🎬 Téléchargement de S{display_season} E{start_episode} uniquement")
@@ -1443,10 +1490,10 @@ def main():
             if not success:
                 # ── Fallback multi-lecteur (logique Co-chan.py) ───────────────
                 fallback_success = False
-                for fallback_index in range(len(all_eps_arrays)):
+                for fallback_index, fallback_links_candidate in enumerate(all_eps_arrays):
                     if fallback_index == current_eps_array_index:
                         continue
-                    fallback_links = all_eps_arrays[fallback_index]
+                    fallback_links = fallback_links_candidate
                     if len(fallback_links) >= episode_counter:
                         fb_type, fb_value = fallback_links[episode_counter - 1]
                         if IS_ANDROID:
@@ -1460,8 +1507,8 @@ def main():
                             fallback_success         = True
                             break
 
-                        # Nettoyage du fichier partiel sur Android (style old.py)
-                        if IS_ANDROID and os.path.exists(filename) and os.path.getsize(filename) == 0:
+                        # Nettoyage du fichier partiel
+                        if os.path.exists(filename) and os.path.getsize(filename) == 0:
                             os.remove(filename)
 
                         if IS_ANDROID:
