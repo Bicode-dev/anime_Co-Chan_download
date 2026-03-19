@@ -14,10 +14,13 @@ IS_IOS=false
 
 # Détection iSH (Alpine Linux sur iOS)
 if [ -f "/etc/alpine-release" ]; then
-    IS_ISH=true
-    IS_IOS=true
     echo "📱 Plateforme détectée : iSH Shell (iOS - iPhone/iPad)"
-    PKG_MANAGER="apk"
+    echo ""
+    echo "❌ Co-chan n'est pas compatible avec iPhone/iPad."
+    echo "   Ce script nécessite Termux sur Android ou un système Linux/macOS."
+    echo ""
+    echo "💡 Astuce : Utilisez un PC, un Mac ou un appareil Android avec Termux."
+    exit 1
     
 # Détection Termux (Android)
 elif [ -d "/data/data/com.termux" ]; then
@@ -28,8 +31,13 @@ elif [ -d "/data/data/com.termux" ]; then
 # Détection iOS (autres apps comme Pythonista)
 elif [ "$PLATFORM" = "Darwin" ]; then
     if [ -d "/var/mobile" ] || [ -f "/System/Library/CoreServices/SpringBoard.app/SpringBoard" ]; then
-        IS_IOS=true
         echo "📱 Plateforme détectée : iOS (iPhone/iPad)"
+        echo ""
+        echo "❌ Co-chan n'est pas compatible avec iPhone/iPad."
+        echo "   Ce script nécessite Termux sur Android ou un système Linux/macOS."
+        echo ""
+        echo "💡 Astuce : Utilisez un PC, un Mac ou un appareil Android avec Termux."
+        exit 1
     else
         echo "🖥️ Plateforme détectée : macOS"
     fi
