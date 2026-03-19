@@ -24,7 +24,7 @@
 ### 📱 Termux (Android)
 
 ```bash
-bash Install-termux-shortcut-set.sh
+bash Co-chan_download_termux.sh
 ```
 
 ### 🖥️ Windows
