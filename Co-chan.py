@@ -1087,10 +1087,13 @@ def get_vidmoly_m3u8(video_id):
         "Connection": "keep-alive",
         "Accept-Encoding": "identity",
     }
+    url = f"https://vidmoly.biz/embed-{video_id}.html"
     for attempt in range(5):
         try:
-            url  = f"https://vidmoly.biz/embed-{video_id}.html"
             resp = session.get(url, headers=headers, timeout=15)
+            if resp.status_code == 404:
+                print(f"⚠️ Vidmoly ID '{video_id}' introuvable (404)")
+                return None
             text = resp.content.decode("utf-8", errors="ignore")
             m3u8 = re.search(r'https?://[^\s"\']+\.m3u8[^\s"\']*', text)
             if m3u8:
@@ -1099,6 +1102,7 @@ def get_vidmoly_m3u8(video_id):
             pass
         if attempt < 4:
             time.sleep(1)
+    print(f"⚠️ Aucun flux m3u8 trouvé pour vidmoly ID '{video_id}'")
     return None
 
 
@@ -1455,8 +1459,6 @@ def main():
 
         while episode_counter <= total_episodes_in_season:
             episode_index = episode_counter - 1
-            if episode_index >= len(all_links):
-                break
 
             # Animation de chargement sur Android uniquement (style old.py)
             if IS_ANDROID:
@@ -1469,13 +1471,18 @@ def main():
                 sys.stdout.write("\r")
                 sys.stdout.flush()
 
-            link_type, link_value = all_links[episode_index]
-
-            if link_type == "sibnet" and check_http_403(link_value):
-                episode_counter += 1
-                if only_episode:
-                    break
-                continue
+            # Récupérer le lien depuis le lecteur courant, ou passer directement au fallback
+            if episode_index < len(all_links):
+                link_type, link_value = all_links[episode_index]
+                if link_type == "sibnet" and check_http_403(link_value):
+                    episode_counter += 1
+                    if only_episode:
+                        break
+                    continue
+                primary_ok = True
+            else:
+                # Le lecteur courant n'a pas cet épisode → forcer le fallback
+                primary_ok = False
 
             download_dir = os.path.join(get_download_path(), folder_name)
             os.makedirs(download_dir, exist_ok=True)
@@ -1484,11 +1491,14 @@ def main():
                 get_anime_image(anime_name_capitalized, download_dir, formatted_url_name)
 
             filename = os.path.join(download_dir, f"s{display_season}_e{episode_counter}.mp4")
-            success  = download_video(link_type, link_value, filename,
-                                      display_season, episode_counter, total_episodes_in_season)
+
+            success = False
+            if primary_ok:
+                success = download_video(link_type, link_value, filename,
+                                         display_season, episode_counter, total_episodes_in_season)
 
             if not success:
-                # ── Fallback multi-lecteur (logique Co-chan.py) ───────────────
+                # ── Fallback multi-lecteur ───────────────────────────────────
                 fallback_success = False
                 for fallback_index, fallback_links_candidate in enumerate(all_eps_arrays):
                     if fallback_index == current_eps_array_index:
@@ -1496,28 +1506,30 @@ def main():
                     fallback_links = fallback_links_candidate
                     if len(fallback_links) >= episode_counter:
                         fb_type, fb_value = fallback_links[episode_counter - 1]
-                        if IS_ANDROID:
-                            print(f"🔄 Lecteur {fallback_index + 1} pour S{display_season} E{episode_counter} ({fb_type})...")
+                        print(f"🔄 Lecteur {fallback_index + 1} pour "
+                              f"S{display_season} E{episode_counter} ({fb_type})...")
                         success = download_video(fb_type, fb_value, filename,
-                                                 display_season, episode_counter, total_episodes_in_season)
+                                                 display_season, episode_counter,
+                                                 total_episodes_in_season)
                         if success:
-                            current_eps_array_index  = fallback_index
-                            all_links                = fallback_links
-                            total_episodes_in_season = len(all_links)
-                            fallback_success         = True
+                            current_eps_array_index = fallback_index
+                            all_links = fallback_links
+                            # Ne pas réduire total_episodes_in_season : on garde le max
+                            fallback_success = True
                             break
 
                         # Nettoyage du fichier partiel
                         if os.path.exists(filename) and os.path.getsize(filename) == 0:
                             os.remove(filename)
 
-                        if IS_ANDROID:
-                            print(f"⚠️ Échec lecteur {fallback_index + 1} pour E{episode_counter}, essai du lecteur suivant...")
+                        print(f"⚠️ Échec lecteur {fallback_index + 1} "
+                              f"pour E{episode_counter}, essai du lecteur suivant...")
 
                 if not fallback_success:
                     sys.stdout.write("\r")
                     sys.stdout.flush()
-                    print(f"⚠️  [S{display_season} E{episode_counter}/{total_episodes_in_season}] Aucun lecteur disponible — épisode ignoré.")
+                    print(f"⚠️  [S{display_season} E{episode_counter}/"
+                          f"{total_episodes_in_season}] Aucun lecteur disponible — épisode ignoré.")
 
             episode_counter += 1
             if only_episode:
