@@ -8,6 +8,319 @@ import time
 import random
 import importlib.util
 
+try:
+    import ctypes  # Windows ANSI support
+except ImportError:
+    ctypes = None
+
+try:
+    import msvcrt  # Windows keyboard
+except ImportError:
+    msvcrt = None
+
+try:
+    import tty
+    import termios
+    import select as _select
+except ImportError:
+    tty = termios = _select = None
+
+
+# ── ConsoleUI ─────────────────────────────────────────────────────────────────
+class ConsoleUI:
+    """Utilitaires d'interface console avec couleurs ANSI et navigation clavier."""
+
+    RESET  = '\033[0m'
+    BOLD   = '\033[1m'
+    DIM    = '\033[2m'
+    RED    = '\033[31m'
+    GREEN  = '\033[32m'
+    YELLOW = '\033[33m'
+    CYAN   = '\033[36m'
+
+    ASCII_LOGO = r"""
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║     ██████╗ ██████╗        ██████╗██╗  ██╗ █████╗ ███╗  ██╗  ║
+║    ██╔════╝██╔═══██╗      ██╔════╝██║  ██║██╔══██╗████╗ ██║  ║
+║    ██║     ██║   ██║█████╗██║     ███████║███████║██╔██╗██║  ║
+║    ██║     ██║   ██║╚════╝██║     ██╔══██║██╔══██║██║╚████║  ║
+║    ╚██████╗╚██████╔╝      ╚██████╗██║  ██║██║  ██║██║ ╚███║  ║
+║     ╚═════╝ ╚═════╝        ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚══╝  ║
+║                                                              ║
+║           🌸  CO-CHAN  DOWNLOADER  🌸                        ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝"""
+
+    @staticmethod
+    def enable_ansi():
+        if os.name == 'nt':
+            try:
+                kernel32 = ctypes.windll.kernel32
+                kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+            except Exception:
+                pass
+
+    @staticmethod
+    def clear():
+        os.system('cls' if os.name == 'nt' else 'clear')
+
+    MAX_VISIBLE = 8
+
+    @staticmethod
+    def _is_termux():
+        """Retourne True si on tourne dans Termux (Android)."""
+        return (os.name != "nt" and (
+            "ANDROID_STORAGE" in os.environ
+            or "com.termux" in os.environ.get("PREFIX", "")
+        ))
+
+    @staticmethod
+    def _is_numeric_mode():
+        """Retourne True si on doit utiliser la saisie numérique plutôt que les flèches.
+        - Termux/Android : pas de séquences ANSI fiables → saisie numérique
+        - Windows        : msvcrt gère les flèches nativement  → flèches
+        - Linux/macOS    : tty+termios gèrent les flèches       → flèches"""
+        return ConsoleUI._is_termux()
+
+    @staticmethod
+    def display_len(s):
+        count = 0
+        for ch in s:
+            cp = ord(ch)
+            if cp in (0xFE0E, 0xFE0F, 0x200D, 0x20E3):
+                continue
+            if 0x0300 <= cp <= 0x036F:
+                continue
+            is_emoji = (0x1F000 <= cp <= 0x1FFFF or 0x2600 <= cp <= 0x27BF
+                        or 0x2B00 <= cp <= 0x2BFF)
+            is_cjk   = (0xFE30 <= cp <= 0xFE4F or 0x2E80 <= cp <= 0x2EFF
+                        or 0x3000 <= cp <= 0x9FFF or 0xF900 <= cp <= 0xFAFF)
+            is_hangul = 0xAC00 <= cp <= 0xD7AF
+            if is_emoji or is_cjk or is_hangul:
+                count += 2
+            else:
+                count += 1
+        return count
+
+    @staticmethod
+    def print_logo():
+        print(ConsoleUI.CYAN + ConsoleUI.ASCII_LOGO + ConsoleUI.RESET)
+
+    @staticmethod
+    def show_menu(options, title="MENU", selected_index=0, subtitle=""):
+        box_w = 62
+        ConsoleUI.clear()
+        ConsoleUI.print_logo()
+
+        if subtitle:
+            print(f"\n  {ConsoleUI.DIM}{subtitle}{ConsoleUI.RESET}")
+        else:
+            print()
+
+        visible = min(len(options), ConsoleUI.MAX_VISIBLE)
+        half    = visible // 2
+        top     = selected_index - half
+        top     = max(0, min(top, len(options) - visible))
+
+        h_line      = "═" * box_w
+        title_vlen  = ConsoleUI.display_len(title)
+        title_pad_l = max(0, (box_w - title_vlen) // 2)
+        title_pad_r = max(0, box_w - title_vlen - title_pad_l)
+        print(f"  ╔{h_line}╗")
+        print(f"  ║{' ' * title_pad_l}{ConsoleUI.BOLD}{ConsoleUI.CYAN}{title}{ConsoleUI.RESET}{' ' * title_pad_r}║")
+        print(f"  ╠{h_line}╣")
+
+        if top > 0:
+            arrow_up = f"▲  {top} élément(s) plus haut"
+            pad_r = " " * max(0, box_w - 2 - ConsoleUI.display_len(arrow_up))
+            print(f"  ║  {ConsoleUI.CYAN}{arrow_up}{ConsoleUI.RESET}{pad_r}║")
+        else:
+            print(f"  ║{' ' * box_w}║")
+
+        inner    = box_w - 4
+        max_text = inner - 3
+
+        for i in range(top, top + visible):
+            raw = options[i]
+            if ConsoleUI.display_len(raw) > max_text:
+                accum, width = [], 0
+                for ch in raw:
+                    cw = 2 if ConsoleUI.display_len(ch) == 2 else 1
+                    if width + cw > max_text - 1:
+                        break
+                    accum.append(ch)
+                    width += cw
+                raw = "".join(accum) + "…"
+
+            prefix       = "▶  " if i == selected_index else "   "
+            visible_text = prefix + raw
+            pad_r        = " " * max(0, inner - ConsoleUI.display_len(visible_text))
+
+            if i == selected_index:
+                print(f"  ║  {ConsoleUI.CYAN}{ConsoleUI.BOLD}{visible_text}{ConsoleUI.RESET}{pad_r}  ║")
+            else:
+                print(f"  ║  {visible_text}{pad_r}  ║")
+
+        remaining = len(options) - top - visible
+        if remaining > 0:
+            arrow_dn = f"▼  {remaining} élément(s) plus bas"
+            pad_r = " " * max(0, box_w - 2 - ConsoleUI.display_len(arrow_dn))
+            print(f"  ║  {ConsoleUI.CYAN}{arrow_dn}{ConsoleUI.RESET}{pad_r}║")
+        else:
+            print(f"  ║{' ' * box_w}║")
+
+        print(f"  ╠{h_line}╣")
+        nav     = "↑ ↓  Naviguer   ↵  Valider   Échap  Retour"
+        nav_pad = " " * max(0, box_w - 2 - ConsoleUI.display_len(nav))
+        print(f"  ║  {ConsoleUI.YELLOW}{nav}{ConsoleUI.RESET}{nav_pad}║")
+        print(f"  ╚{h_line}╝")
+
+    @staticmethod
+    def get_key():
+        """Lit une touche clavier; retourne 'UP','DOWN','ENTER','ESC' ou None.
+        Non utilisé en mode numérique (Termux)."""
+        if os.name == 'nt' and msvcrt:
+            if msvcrt.kbhit():
+                key = msvcrt.getch()
+                if key == b'\xe0':
+                    key = msvcrt.getch()
+                    if key == b'H': return 'UP'
+                    if key == b'P': return 'DOWN'
+                elif key == b'\r': return 'ENTER'
+                elif key == b'\x1b': return 'ESC'
+        elif tty and termios and _select and not ConsoleUI._is_termux():
+            fd = sys.stdin.fileno()
+            try:
+                old_attr = termios.tcgetattr(fd)
+            except Exception:
+                return None
+            try:
+                tty.setraw(fd)
+                if _select.select([sys.stdin], [], [], 0.05)[0]:
+                    ch = sys.stdin.read(1)
+                    if ch == '\x1b':
+                        if _select.select([sys.stdin], [], [], 0.05)[0]:
+                            more = sys.stdin.read(2)
+                            if more == '[A': return 'UP'
+                            if more == '[B': return 'DOWN'
+                        return 'ESC'
+                    if ch in ('\r', '\n'): return 'ENTER'
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_attr)
+        return None
+
+    @staticmethod
+    def flush_keys():
+        if os.name == 'nt' and msvcrt:
+            while msvcrt.kbhit():
+                msvcrt.getch()
+        elif termios and not ConsoleUI._is_termux():
+            try:
+                termios.tcflush(sys.stdin, termios.TCIFLUSH)
+            except Exception:
+                pass
+
+    @staticmethod
+    def navigate(options, title="MENU", subtitle=""):
+        """Navigation par flèches (Windows/Linux/macOS) ou numéro (Android/Termux)."""
+        if not options:
+            return -1
+
+        if ConsoleUI._is_numeric_mode():
+            # ── Menu numéroté (Termux / Android) ─────────────────────────────
+            while True:
+                ConsoleUI.clear()
+                ConsoleUI.print_logo()
+                print(f"{ConsoleUI.CYAN}\n  {'═'*54}{ConsoleUI.RESET}")
+                print(f"  {ConsoleUI.BOLD}{ConsoleUI.CYAN}🌸  CO-CHAN  —  {title}{ConsoleUI.RESET}")
+                if subtitle:
+                    print(f"  {ConsoleUI.DIM}{subtitle}{ConsoleUI.RESET}")
+                print(f"{ConsoleUI.CYAN}  {'═'*54}{ConsoleUI.RESET}\n")
+                for i, opt in enumerate(options, 1):
+                    print(f"  {ConsoleUI.CYAN}{ConsoleUI.BOLD}[{i}]{ConsoleUI.RESET}  {opt}")
+                print(f"  {ConsoleUI.CYAN}{ConsoleUI.BOLD}[0]{ConsoleUI.RESET}  {ConsoleUI.DIM}Retour{ConsoleUI.RESET}")
+                print(f"\n{ConsoleUI.CYAN}  {'─'*54}{ConsoleUI.RESET}")
+                try:
+                    raw = input(f"  {ConsoleUI.YELLOW}▶  {ConsoleUI.RESET}Choix : ").strip()
+                except (EOFError, OSError):
+                    return -1
+                if raw in ("0", ""):
+                    return -1
+                if raw.isdigit():
+                    idx = int(raw) - 1
+                    if 0 <= idx < len(options):
+                        return idx
+                ConsoleUI.warn(f"Choix invalide — entrez un nombre entre 0 et {len(options)}")
+                time.sleep(0.6)
+        else:
+            # ── Menu flèches (Windows / Linux / macOS) ────────────────────────
+            selected = 0
+            while True:
+                ConsoleUI.show_menu(options, title, selected, subtitle)
+                while True:
+                    key = ConsoleUI.get_key()
+                    if key:
+                        break
+                    time.sleep(0.03)
+                if key == 'UP':
+                    selected = (selected - 1) % len(options)
+                elif key == 'DOWN':
+                    selected = (selected + 1) % len(options)
+                elif key == 'ENTER':
+                    return selected
+                elif key == 'ESC':
+                    return -1
+
+    @staticmethod
+    def input_screen(title, prompt_text, subtitle=""):
+        ConsoleUI.clear()
+        ConsoleUI.print_logo()
+        print(f"\n  {ConsoleUI.CYAN}{ConsoleUI.BOLD}{'─'*58}{ConsoleUI.RESET}")
+        print(f"  {ConsoleUI.BOLD}{title}{ConsoleUI.RESET}")
+        if subtitle:
+            print(f"  {ConsoleUI.DIM}{subtitle}{ConsoleUI.RESET}")
+        print(f"  {ConsoleUI.CYAN}{'─'*58}{ConsoleUI.RESET}\n")
+        try:
+            return input(f"  {ConsoleUI.YELLOW}▶  {ConsoleUI.RESET}{prompt_text} : ").strip()
+        except (EOFError, OSError):
+            return ""
+
+    @staticmethod
+    def result_screen(lines, pause=True):
+        ConsoleUI.clear()
+        print(ConsoleUI.CYAN + "\n  " + "═"*58 + ConsoleUI.RESET)
+        for line in lines:
+            print(line)
+        print(ConsoleUI.CYAN + "\n  " + "═"*58 + ConsoleUI.RESET)
+        if pause:
+            try:
+                input(f"\n  {ConsoleUI.DIM}Appuyez sur Entrée pour continuer...{ConsoleUI.RESET}")
+            except (EOFError, OSError):
+                pass
+
+    @staticmethod
+    def info(m):
+        print(f"  {ConsoleUI.CYAN}ℹ  {ConsoleUI.RESET}{m}")
+
+    @staticmethod
+    def success(m):
+        print(f"  {ConsoleUI.GREEN}✔  {ConsoleUI.RESET}{m}")
+
+    @staticmethod
+    def warn(m):
+        print(f"  {ConsoleUI.YELLOW}⚠  {ConsoleUI.RESET}{m}")
+
+    @staticmethod
+    def error(m):
+        print(f"  {ConsoleUI.RED}✖  {ConsoleUI.RESET}{m}")
+
+    @staticmethod
+    def sep():
+        print(f"\n  {ConsoleUI.DIM}{'─'*54}{ConsoleUI.RESET}\n")
+
+
+
 pil_available = importlib.util.find_spec("PIL") is not None
 if pil_available:
     from PIL import Image, ImageOps
@@ -69,8 +382,7 @@ def verify_domain_redirect(url):
 def get_active_domain():
     """Récupère le domaine actif depuis anime-sama.pw"""
     try:
-        print("🔍 Recherche du serveur actif...", end=" ")
-        sys.stdout.flush()
+        ConsoleUI.info("Recherche du serveur actif...")
 
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -84,48 +396,37 @@ def get_active_domain():
 
             if match:
                 base_domain = match.group(1)
-
-                print("🔄", end=" ")
-                sys.stdout.flush()
                 is_valid, redirected_url = verify_domain_redirect(base_domain)
 
                 if is_valid:
                     redirected_domain = redirected_url.split("/catalogue")[0] if "/catalogue" in redirected_url else redirected_url.rstrip("/")
                     full_url = f"{redirected_domain}/catalogue/"
-                    print("✅")
-                    print(f"✅ Serveur actif trouvé")
+                    ConsoleUI.success("Serveur actif trouvé.")
                     return full_url
                 else:
-                    print("⚠️")
-                    print(f"⚠️ L'URL trouvée ne redirige pas correctement")
+                    ConsoleUI.warn("L'URL trouvée ne redirige pas correctement.")
 
             pattern_fallback = r'href="(https?://anime-sama\.(?!pw)[a-z]+)"'
             match_fallback = re.search(pattern_fallback, response.text)
 
             if match_fallback:
                 base_domain = match_fallback.group(1)
-
-                print("🔄", end=" ")
-                sys.stdout.flush()
                 is_valid, redirected_url = verify_domain_redirect(base_domain)
 
                 if is_valid:
                     redirected_domain = redirected_url.split("/catalogue")[0] if "/catalogue" in redirected_url else redirected_url.rstrip("/")
                     full_url = f"{redirected_domain}/catalogue/"
-                    print("✅")
-                    print(f"✅ Serveur actif trouvé : {redirected_domain}")
+                    ConsoleUI.success(f"Serveur actif trouvé : {redirected_domain}")
                     return full_url
 
-        print("❌")
-        print("❌ Impossible de trouver le serveur actif")
-        print("\n⏰ Fermeture automatique dans 10 secondes...")
+        ConsoleUI.error("Impossible de trouver le serveur actif.")
+        ConsoleUI.warn("Fermeture automatique dans 10 secondes...")
         time.sleep(10)
         exit(1)
 
     except Exception as e:
-        print("❌")
-        print(f"❌ Erreur lors de la récupération du serveur : {e}")
-        print("\n⏰ Fermeture automatique dans 10 secondes...")
+        ConsoleUI.error(f"Erreur lors de la récupération du serveur : {e}")
+        ConsoleUI.warn("Fermeture automatique dans 10 secondes...")
         time.sleep(10)
         exit(1)
 
@@ -296,13 +597,13 @@ def check_seasons(base_url, name, language):
             consecutive_not_found = 0
 
             if has_normal and has_hs:
-                print(f"✔ Saison {season} (Normal + HS) trouvée → choix requis")
+                ConsoleUI.info(f"Saison {season} (Normal + HS) trouvée → choix requis")
                 season_info[f"{season}"] = {"type": "both", "normal": normal_url, "hs": hs_url, "variants": []}
             elif has_normal:
-                print(f"✔ Saison {season} trouvée.")
+                ConsoleUI.success(f"Saison {season} trouvée.")
                 season_info[f"{season}"] = {"type": "normal", "url": normal_url, "variants": []}
             else:
-                print(f"✔ Saison {season} HS trouvée.")
+                ConsoleUI.success(f"Saison {season} HS trouvée.")
                 season_info[f"{season}hs"] = {"type": "hs", "url": hs_url, "variants": []}
 
             for base_key, base_url_var in [(f"{season}", normal_url if has_normal else None), (f"{season}hs", hs_url if has_hs else None)]:
@@ -316,7 +617,7 @@ def check_seasons(base_url, name, language):
                     r = requests.get(variant_url, timeout=10)
                     if r.status_code == 200 and r.text.strip():
                         season_info[base_key]["variants"].append((i, variant_url))
-                        print(f"   → Variante {season}{variant_suffix}-{i} trouvée")
+                        ConsoleUI.info(f"   → Variante {season}{variant_suffix}-{i} trouvée")
                         variant_not_found = 0
                     else:
                         variant_not_found += 1
@@ -330,7 +631,7 @@ def check_seasons(base_url, name, language):
         url = f"{base_url}{name}/{special}/{language}/episodes.js"
         r = requests.get(url, timeout=10)
         if r.status_code == 200 and r.text.strip():
-            print(f"✔ {label} trouvé.")
+            ConsoleUI.success(f"{label} trouvé.")
             season_info[special] = {"type": special, "url": url, "variants": []}
 
     return season_info
@@ -341,19 +642,17 @@ def resolve_season_choices(season_info):
 
     for key, info in sorted(season_info.items(), key=lambda x: custom_sort_key(x[0])):
         if info["type"] == "both":
-            print(f"\nPour la Saison {key}:")
-            print("1. Version Normale")
-            print("2. Version HS")
-            choix = ""
-            while choix not in ["1", "2"]:
-                choix = input("Choisissez 1 ou 2 : ").strip()
-            if choix == "1":
+            idx = ConsoleUI.navigate(
+                ["🎬  Version Normale", "⭐  Version HS (Hors-Série)"],
+                f"SAISON {key} — CHOISIR",
+            )
+            if idx in (0, -1):
                 chosen_url = info["normal"]
                 display = key
             else:
                 chosen_url = info["hs"]
                 display = f"{key}hs"
-            print(f"→ {display.upper()} sélectionnée\n")
+            ConsoleUI.success(f"{display.upper()} sélectionnée\n")
 
             urls = [chosen_url]
             if "variants" in info:
@@ -438,73 +737,123 @@ def get_actual_total_episodes_for_season(url_list):
     return episode_counter
 
 def ask_for_starting_point(folder_name, seasons):
-    """Demande le point de départ avec détection automatique et vérification corrigée"""
+    """Demande le point de départ avec détection automatique et navigation flèches.
+    Retourne (start_season, start_episode, only_season, only_episode)."""
     download_dir = os.path.join(get_download_path(), folder_name)
     last_season, last_episode = find_last_downloaded_episode(download_dir)
 
     if last_season is not None and last_episode is not None:
-        print(f"📁 Dernier épisode détecté : S{last_season} E{last_episode}")
+        ConsoleUI.info(f"Dernier épisode détecté : S{last_season} E{last_episode}")
 
         downloaded_count = count_downloaded_episodes_for_season(download_dir, last_season)
-        total_episodes_in_season = get_actual_total_episodes_for_season([url_list for display, url_list in seasons if display == last_season][0])
+        total_episodes_in_season = get_actual_total_episodes_for_season(
+            [url_list for display, url_list in seasons if display == last_season][0]
+        )
 
-        print(f"📊 Épisodes téléchargés pour S{last_season}: {downloaded_count}/{total_episodes_in_season}")
+        ConsoleUI.info(f"Épisodes téléchargés pour S{last_season} : {downloaded_count}/{total_episodes_in_season}")
 
         if total_episodes_in_season > 0 and downloaded_count >= total_episodes_in_season:
-            print(f"✅ Tous les épisodes de la saison {last_season} sont déjà téléchargés")
-
+            ConsoleUI.success(f"Tous les épisodes de la saison {last_season} sont déjà téléchargés !")
             season_keys = [display for display, _ in seasons]
-
             current_season_index = season_keys.index(last_season) if last_season in season_keys else None
 
             if current_season_index is not None and current_season_index + 1 < len(season_keys):
                 next_season = season_keys[current_season_index + 1]
-                choice = input(f"Passer à la saison suivante S{next_season} E1 ? (o/n): ").strip().lower()
-
-                if choice in ['o', 'oui', 'y', 'yes', '']:
-                    print(f"➡️ Passage à la saison suivante S{next_season} E1")
-                    return next_season, 1
+                idx = ConsoleUI.navigate(
+                    [f"▶  Passer à la saison suivante S{next_season} E1",
+                     "⏮  Rester sur la saison actuelle"],
+                    "SAISON COMPLÈTE"
+                )
+                if idx in (0, -1):
+                    ConsoleUI.info(f"Passage à la saison suivante S{next_season} E1")
+                    return next_season, 1, False, False
             else:
-                print("🎉 Tous les épisodes disponibles ont été téléchargés !")
-                choice = input("Recommencer depuis le début ? (o/n): ").strip().lower()
-
-                if choice in ['o', 'oui', 'y', 'yes', '']:
-                    print("➡️ Redémarrage depuis le début")
-                    return 0, 0
+                ConsoleUI.success("🎉 Tous les épisodes disponibles ont été téléchargés !")
+                idx = ConsoleUI.navigate(
+                    ["🔄  Recommencer depuis le début", "❌  Quitter"],
+                    "TÉLÉCHARGEMENT TERMINÉ"
+                )
+                if idx == 0:
+                    ConsoleUI.info("Redémarrage depuis le début")
+                    return 0, 0, False, False
                 else:
-                    print("Arrêt du programme.")
-                    exit(0)
+                    sys.exit(0)
         else:
-            choice = input(f"Continuer en retéléchargeant le dernier épisode S{last_season} E{last_episode} ? (o/n): ").strip().lower()
+            idx = ConsoleUI.navigate(
+                [f"▶  Reprendre depuis S{last_season} E{last_episode}",
+                 "⏭  Télécharger tous les épisodes depuis le début"],
+                "REPRENDRE LE TÉLÉCHARGEMENT"
+            )
+            if idx == 0:
+                ConsoleUI.info(f"Reprise à partir de S{last_season} E{last_episode}")
+                return last_season, last_episode, False, False
 
-            if choice in ['o', 'oui', 'y', 'yes', '']:
-                print(f"➡️ Reprise à partir de S{last_season} E{last_episode} (retéléchargement)")
-                return last_season, last_episode
+    # Choix principal : tout / une saison / point de départ / épisode unique
+    idx = ConsoleUI.navigate(
+        ["📥  Télécharger tous les épisodes",
+         "📺  Télécharger une saison complète",
+         "🎯  Choisir un point de départ précis",
+         "🎬  Télécharger un seul épisode"],
+        "POINT DE DÉPART"
+    )
 
-    choice = input("Télécharger tous les épisodes ? (o/n): ").strip().lower()
+    if idx in (0, -1):
+        ConsoleUI.info("Téléchargement de tous les épisodes")
+        return 0, 0, False, False
 
-    if choice in ['o', 'oui', 'y', 'yes', '']:
-        print("➡️ Téléchargement de tous les épisodes")
-        return 0, 0
+    # ── Télécharger une saison complète ──────────────────────────────────────
+    if idx == 1:
+        season_options = [f"📺  Saison {s}" for s, _ in seasons]
+        s_idx = ConsoleUI.navigate(season_options, "CHOISIR LA SAISON")
+        if s_idx == -1:
+            return 0, 0, False, False
+        chosen_season = seasons[s_idx][0]
+        ConsoleUI.info(f"Téléchargement de la saison {chosen_season} complète")
+        return chosen_season, 1, True, False   # only_season = True
 
-    while True:
-        try:
-            season_input = input("Numéro de saison (ou 'film'/'oav', ajoutez 'hs' si HS): ").strip().lower()
+    # ── Choisir un point de départ précis ────────────────────────────────────
+    if idx == 2:
+        season_options = [f"📺  Saison {s}" for s, _ in seasons]
+        s_idx = ConsoleUI.navigate(season_options, "CHOISIR LA SAISON DE DÉPART")
+        if s_idx == -1:
+            return 0, 0, False, False
+        chosen_season = seasons[s_idx][0]
 
-            if season_input == "film":
-                season = "film"
-            elif season_input == "oav":
-                season = "oav"
-            else:
-                season = season_input
+        while True:
+            try:
+                ep_raw = ConsoleUI.input_screen(
+                    f"ÉPISODE DE DÉPART — Saison {chosen_season}",
+                    "Numéro d'épisode"
+                )
+                episode = int(ep_raw)
+                ConsoleUI.info(f"Téléchargement à partir de S{chosen_season} E{episode}")
+                return chosen_season, episode, False, False
+            except ValueError:
+                ConsoleUI.warn("Veuillez entrer un numéro d'épisode valide.")
 
-            episode = int(input("Numéro d'épisode: ").strip())
+    # ── Télécharger un seul épisode ───────────────────────────────────────────
+    if idx == 3:
+        season_options = [f"📺  Saison {s}" for s, _ in seasons]
+        s_idx = ConsoleUI.navigate(season_options, "CHOISIR LA SAISON")
+        if s_idx == -1:
+            return 0, 0, False, False
+        chosen_season = seasons[s_idx][0]
 
-            print(f"➡️ Téléchargement à partir de S{season} E{episode}")
-            return season, episode
+        while True:
+            try:
+                ep_raw = ConsoleUI.input_screen(
+                    f"ÉPISODE UNIQUE — Saison {chosen_season}",
+                    "Numéro d'épisode",
+                    "Un seul épisode sera téléchargé"
+                )
+                episode = int(ep_raw)
+                ConsoleUI.info(f"Téléchargement de S{chosen_season} E{episode} uniquement")
+                return chosen_season, episode, False, True   # only_episode = True
+            except ValueError:
+                ConsoleUI.warn("Veuillez entrer un numéro d'épisode valide.")
 
-        except ValueError:
-            print("⚠️ Veuillez entrer des nombres valides")
+    return 0, 0, False, False
+
 
 def check_http_403(url):
     attempts = 0
@@ -800,8 +1149,23 @@ def show_usage():
     print("  - Sendvid")
 
 def main():
+    ConsoleUI.enable_ansi()
+
+    # ── Écran de démarrage ────────────────────────────────────────────────────
+    ConsoleUI.clear()
+    ConsoleUI.print_logo()
+    if ConsoleUI._is_termux():
+        platform_label = "Android (Termux) — navigation numérique"
+    elif os.name == 'nt':
+        platform_label = "Windows — navigation par flèches"
+    else:
+        platform_label = "Linux / macOS — navigation par flèches"
+    print(f"  {ConsoleUI.DIM}🖥  Plateforme détectée : {platform_label}{ConsoleUI.RESET}")
+    print(f"\n  {ConsoleUI.DIM}⏳ Chargement, veuillez patienter...{ConsoleUI.RESET}\n")
+
     base_url = check_domain_availability()
 
+    # ── Mode arguments (CLI) ──────────────────────────────────────────────────
     if len(sys.argv) > 1:
         if sys.argv[1].lower() in ["-h", "--help", "help", "/?", "-?"]:
             show_usage()
@@ -813,65 +1177,137 @@ def main():
             anime_name_capitalized = anime_name.title()
             set_title(f"Co-Chan : {anime_name_capitalized}")
 
-            if language_input == "vf":
-                language_choice = "1"
-            elif language_input == "vostfr":
-                language_choice = "2"
-            else:
-                print(f"⛔ Langage '{language_input}' non reconnu. Utilisez 'vf' ou 'vostfr' ou autre valide.")
+            if language_input not in ["vf", "vostfr", "va", "vkr", "vcn", "vqc"]:
+                ConsoleUI.error(f"Langage '{language_input}' non reconnu. Utilisez 'vf' ou 'vostfr'.")
                 show_usage()
                 return
+
+            selected_language_override = language_input
         else:
-            print("⛔ Nombre d'arguments incorrect.")
+            ConsoleUI.error("Nombre d'arguments incorrect.")
             show_usage()
             return
+
+        formatted_url_name = format_url_name(anime_name)
+        ConsoleUI.info(f"Vérification de '{anime_name_capitalized}'...")
+
+        if not check_anime_exists(base_url, formatted_url_name):
+            ConsoleUI.error(f"L'anime '{anime_name_capitalized}' est introuvable.")
+            ConsoleUI.warn("Vérifiez l'orthographe ou essayez le nom japonais.")
+            time.sleep(5)
+            exit(1)
+
+        ConsoleUI.success(f"Anime '{anime_name_capitalized}' trouvé !")
+        selected_language = selected_language_override
+
+    # ── Mode interactif (menu) ────────────────────────────────────────────────
     else:
-        anime_name = normalize_anime_name(input("Entrez le nom de l'anime : "))
-        anime_name_capitalized = anime_name.title()
-        set_title(f"Co-Chan : {anime_name_capitalized}")
+        while True:
+            choice = ConsoleUI.navigate([
+                "🌸  Télécharger un anime",
+                "❓  Aide / Usage",
+                "❌  Quitter",
+            ], "MENU PRINCIPAL")
 
-    formatted_url_name = format_url_name(anime_name)
+            if choice == 0:
+                # Saisie du nom de l'anime
+                anime_name_raw = ConsoleUI.input_screen(
+                    "TÉLÉCHARGER UN ANIME",
+                    "Nom de l'anime",
+                    "Entrez le nom exact ou approximatif"
+                )
+                if not anime_name_raw:
+                    continue
 
-    print(f"🔍 Vérification de l'existence de '{anime_name_capitalized}'...")
-    if not check_anime_exists(base_url, formatted_url_name):
-        print(f"❌ L'anime '{anime_name_capitalized}' n'existe pas ou essayez avec le nom en japonais.")
-        print("   Ni en version française (VF), ni en version sous-titrée (VOSTFR).")
-        print("   Vérifiez l'orthographe ou essayez avec un autre nom.")
-        print("\n⏰ Fermeture automatique dans 5 secondes...")
-        time.sleep(5)
-        exit(1)
+                anime_name = normalize_anime_name(anime_name_raw)
+                anime_name_capitalized = anime_name.title()
+                set_title(f"Co-Chan : {anime_name_capitalized}")
+                formatted_url_name = format_url_name(anime_name)
 
-    print(f"✅ Anime '{anime_name_capitalized}' trouvé !")
+                ConsoleUI.clear()
+                ConsoleUI.print_logo()
+                ConsoleUI.sep()
+                ConsoleUI.info(f"Vérification de '{anime_name_capitalized}'...")
 
-    available_vf_versions = check_available_languages(base_url, formatted_url_name)
+                if not check_anime_exists(base_url, formatted_url_name):
+                    ConsoleUI.error(f"'{anime_name_capitalized}' introuvable.")
+                    ConsoleUI.warn("Vérifiez l'orthographe ou essayez avec le nom japonais.")
+                    ConsoleUI.sep()
+                    try:
+                        input(f"  {ConsoleUI.DIM}Appuyez sur Entrée pour continuer...{ConsoleUI.RESET}")
+                    except (EOFError, OSError):
+                        pass
+                    continue
 
-    if available_vf_versions:
-        print("\nVersions disponibles :")
-        for i, lang in enumerate(available_vf_versions, start=1):
-            print(f"{i}. {lang.upper()}")
-        print(f"{len(available_vf_versions)+1}. VOSTFR")
+                ConsoleUI.success(f"Anime '{anime_name_capitalized}' trouvé !")
+                ConsoleUI.sep()
 
-        choice = input("Choisissez la version : ").strip()
-        if choice.isdigit() and 1 <= int(choice) <= len(available_vf_versions):
-            selected_language = available_vf_versions[int(choice)-1]
-        else:
-            selected_language = "vostfr"
-    else:
-        print("⛔ Aucune version VF trouvée, VOSTFR sélectionné automatiquement.")
-        selected_language = "vostfr"
+                # Sélection de la langue via navigation flèches
+                available_vf_versions = check_available_languages(base_url, formatted_url_name)
+
+                if available_vf_versions:
+                    lang_options = [f"🎌  {lang.upper()}" for lang in available_vf_versions]
+                    lang_options.append("📺  VOSTFR")
+                    lang_idx = ConsoleUI.navigate(lang_options, "CHOISIR LA VERSION", anime_name_capitalized)
+                    if lang_idx == -1:
+                        continue
+                    if lang_idx < len(available_vf_versions):
+                        selected_language = available_vf_versions[lang_idx]
+                    else:
+                        selected_language = "vostfr"
+                else:
+                    ConsoleUI.warn("Aucune version VF trouvée → VOSTFR sélectionné automatiquement.")
+                    selected_language = "vostfr"
+
+                break  # on sort du while True pour continuer le téléchargement
+
+            elif choice == 1:
+                ConsoleUI.clear()
+                ConsoleUI.print_logo()
+                show_usage()
+                try:
+                    input(f"\n  {ConsoleUI.DIM}Appuyez sur Entrée pour revenir au menu...{ConsoleUI.RESET}")
+                except (EOFError, OSError):
+                    pass
+                continue
+
+            else:  # Quitter ou Échap
+                ConsoleUI.result_screen([
+                    f"  {ConsoleUI.CYAN}👋  Merci d'avoir utilisé Co-Chan !{ConsoleUI.RESET}",
+                    "  🌸  À bientôt !",
+                ], pause=False)
+                time.sleep(1)
+                sys.exit(0)
 
     folder_name = format_folder_name(anime_name_capitalized, selected_language)
 
     if not check_disk_space():
-        print("⛔ Espace disque insuffisant. Libérez de l'espace et réessayez.")
+        ConsoleUI.error("Espace disque insuffisant. Libérez de l'espace et réessayez.")
         exit(1)
+
+    ConsoleUI.clear()
+    ConsoleUI.print_logo()
+    ConsoleUI.sep()
+    ConsoleUI.info(f"Recherche des saisons pour '{anime_name_capitalized}' [{selected_language.upper()}]...")
+    ConsoleUI.sep()
 
     raw_season_info = check_seasons(base_url, formatted_url_name, selected_language)
     seasons = resolve_season_choices(raw_season_info)
 
-    start_season, start_episode = ask_for_starting_point(folder_name, seasons)
+    ConsoleUI.clear()
+    ConsoleUI.print_logo()
+    ConsoleUI.sep()
+
+    start_season, start_episode, only_season, only_episode = ask_for_starting_point(folder_name, seasons)
 
     for display_season, url_list in seasons:
+        # Si on veut seulement une saison précise, ignorer les autres
+        if only_season and start_season != 0 and display_season != start_season:
+            continue
+        # Si on veut un seul épisode, ignorer les saisons qui ne correspondent pas
+        if only_episode and display_season != start_season:
+            continue
+
         # Extraire TOUS les eps arrays pour permettre les fallbacks
         all_eps_arrays = []
         for url in url_list:
@@ -903,11 +1339,21 @@ def main():
                     continue
                 elif current_index == start_index and start_episode > 1:
                     episode_counter = start_episode
-                    print(f"➡️ Reprise à S{display_season} E{start_episode}")
+                    if only_episode:
+                        print(f"🎬 Téléchargement de S{display_season} E{start_episode} uniquement")
+                    else:
+                        print(f"➡️ Reprise à S{display_season} E{start_episode}")
             except ValueError:
                 pass
 
-        print(f"♾️ Téléchargement de la Saison {display_season.upper()} ({total_episodes_in_season} épisodes)")
+        if only_episode:
+            # Vérifier que l'épisode demandé existe
+            if start_episode > total_episodes_in_season:
+                ConsoleUI.error(f"L'épisode {start_episode} n'existe pas pour la saison {display_season} ({total_episodes_in_season} épisodes disponibles).")
+                continue
+            print(f"🎬 Téléchargement de la Saison {display_season.upper()} — Épisode {start_episode} uniquement")
+        else:
+            print(f"♾️ Téléchargement de la Saison {display_season.upper()} ({total_episodes_in_season} épisodes)")
 
         while episode_counter <= total_episodes_in_season:
             episode_index = episode_counter - 1
@@ -919,6 +1365,9 @@ def main():
 
             if link_type == "sibnet" and check_http_403(link_value):
                 episode_counter += 1
+                # Si épisode unique et 403, on arrête directement
+                if only_episode:
+                    break
                 continue
 
             download_dir = os.path.join(get_download_path(), folder_name)
@@ -962,13 +1411,25 @@ def main():
                     sys.stdout.write("\r")
                     sys.stdout.flush()
                     print(f"❌ [S{display_season} E{episode_counter}/{total_episodes_in_season}] Téléchargement échoué ! Passage à l'épisode suivant...")
-                    episode_counter += 1
-                else:
-                    # Succès avec le fallback, continuer normalement
-                    episode_counter += 1
-            else:
-                # Téléchargement réussi
-                episode_counter += 1
+
+            episode_counter += 1
+
+            # Après avoir traité cet épisode, si mode épisode unique → on arrête
+            if only_episode:
+                break
+
+        # Si mode épisode unique, inutile de continuer sur d'autres saisons
+        if only_episode:
+            break
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        ConsoleUI.clear()
+        ConsoleUI.print_logo()
+        print(f"\n  {ConsoleUI.CYAN}👋  Merci d'avoir utilisé Co-Chan !{ConsoleUI.RESET}")
+        print("  🌸  À bientôt !")
+        print(ConsoleUI.CYAN + "  " + "═"*58 + ConsoleUI.RESET + "\n")
+        time.sleep(1)
+        sys.exit(0)
