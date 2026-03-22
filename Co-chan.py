@@ -392,7 +392,7 @@ class SimpleUI:
 
     @staticmethod
     def info(m):
-        print(f"ℹ️  {m}")
+        print(f"🔹 {m}")
 
     @staticmethod
     def success(m):
@@ -587,7 +587,10 @@ def get_download_path():
     if s == "Windows":
         return os.getcwd()
     if s == "Linux" and "ANDROID_STORAGE" in os.environ:
-        return "/storage/emulated/0/Download/anime"
+        termux_dl = os.path.expanduser("~/storage/downloads")
+        if os.path.exists(termux_dl):
+            return termux_dl
+        return "/storage/emulated/0/Download"
     if s == "Darwin" and is_ios_device():
         for path in [
             os.path.expanduser("~/Documents/anime"),
@@ -1228,10 +1231,7 @@ def show_usage():
 def main():
     # Initialisation de l'affichage selon la plateforme
     if IS_ANDROID:
-        SimpleUI.clear()
-        SimpleUI.print_logo()
-        print("📱 Plateforme détectée : Android (Termux)")
-        print("⏳ Chargement, veuillez patienter...\n")
+        pass
     else:
         ConsoleUI.enable_ansi()
         ConsoleUI.clear()
