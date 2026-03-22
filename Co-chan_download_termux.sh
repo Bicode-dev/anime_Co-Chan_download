@@ -150,7 +150,7 @@ else
 fi
 
 # Télécharger le script depuis GitHub
-curl -L -o "$SCRIPT_PATH" https://raw.githubusercontent.com/Colmax06/Co-chan/main/Co-chan.py
+curl -L -o "$SCRIPT_PATH" https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Co-chan.py
 
 if [ -f "$SCRIPT_PATH" ]; then
     echo "✅ Script téléchargé avec succès"
