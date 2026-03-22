@@ -1180,8 +1180,8 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
 
     ydl_opts = {
         "outtmpl":             filename,
-        "quiet":               True,
-        "ignoreerrors":        False,
+        "quiet":               False if IS_ANDROID else True,
+        "ignoreerrors":        True,
         "no_warnings":         True,
         "noprogress":          False,
         "progress_hooks":      [lambda d: progress_hook(d, season, episode, max_episode)],
@@ -1189,7 +1189,7 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
         "merge_output_format": "mp4",
         "logger":              logger,
         "socket_timeout":      60,
-        "retries":             3,
+        "retries":             15 if IS_ANDROID else 3,
         "paths":               {"temp": temp_dir},
     }
 
