@@ -392,7 +392,7 @@ class SimpleUI:
 
     @staticmethod
     def info(m):
-        print(f"🔹 {m}")
+        print(f"🛈  {m}")
 
     @staticmethod
     def success(m):
@@ -1204,6 +1204,9 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
         "logger":              logger,
         "socket_timeout":      60,
         "retries":             15 if IS_ANDROID else 3,
+        "concurrent_fragment_downloads": 4 if IS_ANDROID else 1,
+        "http_chunk_size":     10485760 if IS_ANDROID else None,
+        "buffersize":          16384 if IS_ANDROID else None,
         "paths":               {"temp": temp_dir},
     }
 
@@ -1469,7 +1472,7 @@ def main():
         while episode_counter <= total_episodes_in_season:
             episode_index = episode_counter - 1
 
-            # Animation de chargement sur Android uniquement (style old.py)
+            # Animation de chargement
             if IS_ANDROID:
                 sys.stdout.write("🌐 Chargement")
                 sys.stdout.flush()
