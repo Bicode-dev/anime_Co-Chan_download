@@ -529,34 +529,44 @@ def check_domain_availability():
 # ── Espace disque ─────────────────────────────────────────────────────────────
 def check_disk_space(min_gb=1):
     s = platform.system()
+
     if s == "Windows":
-        _, _, free_c = shutil.disk_usage("C:\\")
-        if free_c / (1024**2) < 100:
-            print(f"⚠️ Espace insuffisant sur C: ({free_c / (1024**2):.0f} Mo disponibles)")
+        total_c, used_c, free_c = shutil.disk_usage("C:\\")
+        free_space_c_mb = free_c / (1024**2)
+
+        if free_space_c_mb < 100:
+            print(f"⚠️ Espace insuffisant sur C: ({free_space_c_mb:.0f} Mo disponibles, 100 Mo requis)")
             return False
+
         current_drive = os.path.splitdrive(os.getcwd())[0] + "\\"
-        _, _, free = shutil.disk_usage(current_drive)
+        total, used, free = shutil.disk_usage(current_drive)
         free_space_gb = free / (1024**3)
+
     elif s == "Linux" and "ANDROID_STORAGE" in os.environ:
         try:
-            for check_path in ["/storage/emulated/0", os.path.expanduser("~/storage/downloads"), os.path.expanduser("~")]:
-                if os.path.exists(check_path):
-                    _, _, free = shutil.disk_usage(check_path)
-                    free_space_gb = free / (1024**3)
-                    break
+            output = os.popen("df -h /storage/emulated/0").read()
+            lines = output.split("\n")
+            if len(lines) > 1:
+                free_space = lines[1].split()[3]
+                if "G" in free_space:
+                    free_space_gb = float(free_space.replace("G", ""))
+                elif "M" in free_space:
+                    free_space_gb = float(free_space.replace("M", "")) / 1024
+                else:
+                    free_space_gb = 0
             else:
                 free_space_gb = 0
-        except Exception:
+        except:
             free_space_gb = 0
     elif s == "Darwin" and is_ios_device():
         try:
             home_path = os.path.expanduser("~")
             if os.path.exists(home_path):
-                _, _, free = shutil.disk_usage(home_path)
+                total, used, free = shutil.disk_usage(home_path)
                 free_space_gb = free / (1024**3)
             else:
                 free_space_gb = 0
-        except Exception:
+        except:
             free_space_gb = 0
     else:
         statvfs = os.statvfs("/")
