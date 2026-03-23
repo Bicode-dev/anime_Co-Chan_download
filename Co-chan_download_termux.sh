@@ -43,8 +43,32 @@ COFLIX_PATH="$PY_DIR/Co-flix.py"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 clr() { clear; }
 nl()  { echo ""; }
-sep_h(){ echo -e "${C1}  $(printf '═%.0s' $(seq 1 54))${RESET}"; }
-sep_l(){ echo -e "${DIM}  $(printf '─%.0s' $(seq 1 54))${RESET}"; }
+
+# Largeur du terminal (fallback 54 si tput indisponible)
+cols() { tput cols 2>/dev/null || echo 54; }
+
+# Génère N répétitions du caractère $1 pour remplir jusqu'à la largeur du terminal
+# Usage : fill_to_cols <char> <déjà_utilisé>
+fill_to_cols() {
+    local char="$1" used="${2:-2}"
+    local w=$(( $(cols) - used ))
+    [ "$w" -lt 1 ] && w=1
+    printf "${char}%.0s" $(seq 1 "$w")
+}
+
+sep_h(){ echo -e "${C1}  $(fill_to_cols '═' 2)${RESET}"; }
+sep_l(){ echo -e "${DIM}  $(fill_to_cols '─' 2)${RESET}"; }
+
+# En-tête de section : "═══ LABEL ════...═" qui remplit toute la ligne
+# Usage : sec_hdr <couleur> <label>
+sec_hdr() {
+    local color="$1" label="$2"
+    local prefix="═══ ${label} "
+    local used=$(( 2 + ${#prefix} ))
+    local rest=$(fill_to_cols '═' "$used")
+    echo -e "  ${color}${BOLD}${prefix}${RESET}${DIM}${rest}${RESET}"
+}
+
 line_ok()  { echo -e "  ${OK}  $1"; }
 line_warn(){ echo -e "  ${WARN}  $1"; }
 line_err() { echo -e "  ${ERR}  $1"; }
@@ -163,7 +187,7 @@ print_menu() {
     banner
 
     # ── Section ÉTAT DES FICHIERS ─────────────────────────────────────────────
-    echo -e "  ${C1}${BOLD}═══ ÉTAT DES FICHIERS ${DIM}(vérification en cours...)${RESET}${C1} $(printf '═%.0s' $(seq 1 18))${RESET}"
+    sec_hdr "${C1}" "ÉTAT DES FICHIERS"
     file_status_line "$COMENU_PATH" "$URL_COMENU" "Co-Menu.py"
     file_status_line "$COCHAN_PATH" "$URL_COCHAN" "Co-chan.py"
     file_status_line "$COTUBE_PATH" "$URL_COTUBE" "Co-tube.py"
@@ -177,20 +201,20 @@ print_menu() {
     nl
 
     # ── Section PAR SCRIPT ───────────────────────────────────────────────────
-    echo -e "  ${C2}${BOLD}═══ PAR SCRIPT $(printf '═%.0s' $(seq 1 38))${RESET}"
+    sec_hdr "${C2}" "PAR SCRIPT"
     echo -e "  ${C1}${BOLD} [1] ${RESET} Co-Menu.py   ${DIM}→ installer ou mettre à jour${RESET}"
     echo -e "  ${C1}${BOLD} [2] ${RESET} Co-chan.py   ${DIM}→ installer ou mettre à jour${RESET}"
     echo -e "  ${C1}${BOLD} [3] ${RESET} Co-tube.py  ${DIM}→ installer ou mettre à jour${RESET}"
     nl
 
     # ── Section INSTALLATION ─────────────────────────────────────────────────
-    echo -e "  ${C2}${BOLD}═══ INSTALLATION $(printf '═%.0s' $(seq 1 36))${RESET}"
+    sec_hdr "${C2}" "INSTALLATION"
     echo -e "  ${C1}${BOLD} [4] ${RESET} Installation complète          ${DIM}paquets + scripts + config${RESET}"
     echo -e "  ${C1}${BOLD} [5] ${RESET} Mettre à jour tous les scripts ${DIM}Co-Menu + Co-chan + Co-tube${RESET}"
     nl
 
     # ── Section OUTILS ───────────────────────────────────────────────────────
-    echo -e "  ${C3}${BOLD}═══ OUTILS $(printf '═%.0s' $(seq 1 42))${RESET}"
+    sec_hdr "${C3}" "OUTILS"
     echo -e "  ${C2}${BOLD} [6] ${RESET} Stockage Android               ${DIM}termux-setup-storage${RESET}"
     echo -e "  ${C2}${BOLD} [7] ${RESET} Alias & raccourcis Termux      ${DIM}co / anime / cotube / coupdate${RESET}"
     echo -e "  ${C2}${BOLD} [8] ${RESET} Supprimer les animes           ${DIM}/storage/.../Download/anime${RESET}"
@@ -203,7 +227,6 @@ print_menu() {
     nl
     printf "  ${C1}${BOLD}›› ${RESET}Choix : "
 }
-
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ACTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -392,7 +415,6 @@ full_install() {
     nl; sep_h
     echo -e "  ${C1}${BOLD}  ✔  Installation terminée !${RESET}"
     sep_h; nl
-    echo -e "  ${C3}Lancer :${RESET}  ${C1}${BOLD}python3 ~/Co-Menu.py${RESET}  ${DIM}ou${RESET}  ${C1}${BOLD}co${RESET}"
     nl; pause
 }
 
