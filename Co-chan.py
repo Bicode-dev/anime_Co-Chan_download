@@ -9,6 +9,9 @@ import sys
 import tempfile
 import time
 
+import json
+import subprocess
+
 import requests
 from yt_dlp import YoutubeDL
 
@@ -38,6 +41,43 @@ def _is_termux():
     ))
 
 IS_ANDROID = _is_termux()
+
+
+# ── Configuration (PC uniquement) ─────────────────────────────────────────────
+def _config_path():
+    """Retourne le chemin du fichier de config, ou None sur Android (pas de config)."""
+    if IS_ANDROID:
+        return None
+    if os.name == "nt":
+        local_app = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+        return os.path.join(local_app, "CoTEAM", "Co-Chan", "co-chan_config.json")
+    # Linux/macOS hors Android
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "co-chan_config.json")
+
+
+def _load_config():
+    path = _config_path()
+    if path is None:
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_config(data):
+    path = _config_path()
+    if path is None:
+        return  # Android : pas de fichier de config
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        existing = _load_config()
+        existing.update(data)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2)
+    except Exception:
+        pass
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -592,14 +632,17 @@ def progress_hook(d, season, episode, max_episode):
 
 # ── Chemin de téléchargement ──────────────────────────────────────────────────
 def get_download_path():
+    # Android : chemin fixe, pas de config
+    if IS_ANDROID:
+        path = "/storage/emulated/0/Download/Anime"
+        try:
+            os.makedirs(path, exist_ok=True)
+        except Exception:
+            pass
+        return path
+
+    # iOS
     s = platform.system()
-    if s == "Windows":
-        return os.getcwd()
-    if s == "Linux" and "ANDROID_STORAGE" in os.environ:
-        termux_dl = os.path.expanduser("~/storage/downloads")
-        if os.path.exists(termux_dl):
-            return termux_dl
-        return "/storage/emulated/0/Download"
     if s == "Darwin" and is_ios_device():
         for path in [
             os.path.expanduser("~/Documents/anime"),
@@ -613,9 +656,18 @@ def get_download_path():
             except Exception:
                 continue
         return os.path.join(os.getcwd(), "anime")
-    if s == "Darwin":
-        return os.path.join(os.path.expanduser("~"), "Downloads", "anime")
-    return os.path.join(os.path.expanduser("~"), "Downloads", "anime")
+
+    # PC : lire depuis la config
+    cfg = _load_config()
+    saved = cfg.get("download_dir", "")
+    if saved and os.path.isdir(saved):
+        return saved
+
+    # Fallback (ne devrait pas arriver si main() a bien configuré le dossier)
+    if os.name == "nt":
+        local_app = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+        return os.path.join(local_app, "CoTEAM", "Co-Chan")
+    return os.path.join(os.path.expanduser("~"), "Downloads", "Anime")
 
 
 # ── Formatage ─────────────────────────────────────────────────────────────────
@@ -1225,6 +1277,75 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
         return False
 
 
+# ── Paramètres PC ─────────────────────────────────────────────────────────────
+def _ask_dest_dir_pc():
+    """Demande à l'utilisateur où télécharger les animes et sauvegarde le choix."""
+    while True:
+        new = ConsoleUI.input_screen(
+            "DOSSIER DE TÉLÉCHARGEMENT",
+            "Chemin complet du dossier de téléchargement",
+            subtitle="Ce choix sera sauvegardé dans la configuration.",
+        )
+        if not new:
+            ConsoleUI.warn("Aucun chemin saisi. Veuillez en entrer un.")
+            time.sleep(0.8)
+            continue
+        try:
+            os.makedirs(new, exist_ok=True)
+            chosen = os.path.abspath(new)
+            _save_config({"download_dir": chosen})
+            ConsoleUI.result_screen([
+                f"  {ConsoleUI.GREEN}✔  Dossier configuré !{ConsoleUI.RESET}",
+                f"  {ConsoleUI.CYAN}📂  {chosen}{ConsoleUI.RESET}",
+            ])
+            return chosen
+        except Exception as e:
+            ConsoleUI.result_screen([f"  {ConsoleUI.RED}✖  {e}{ConsoleUI.RESET}"])
+
+
+def menu_settings_pc():
+    """Menu paramètres PC : changer / ouvrir le dossier de téléchargement."""
+    current_dir = [get_download_path()]
+    while True:
+        choice = ConsoleUI.navigate(
+            ["📁  Changer le dossier de téléchargement",
+             "📂  Ouvrir le dossier actuel",
+             "🔙  Retour"],
+            "PARAMÈTRES",
+            subtitle=f"Dossier actuel : {current_dir[0]}",
+        )
+        if choice in (-1, 2):
+            return
+
+        if choice == 0:
+            new = ConsoleUI.input_screen(
+                "DOSSIER DE TÉLÉCHARGEMENT",
+                "Nouveau chemin complet",
+                subtitle=f"Actuel : {current_dir[0]}",
+            )
+            if new:
+                try:
+                    os.makedirs(new, exist_ok=True)
+                    current_dir[0] = os.path.abspath(new)
+                    _save_config({"download_dir": current_dir[0]})
+                    ConsoleUI.result_screen([
+                        f"  {ConsoleUI.GREEN}✔  Dossier mis à jour !{ConsoleUI.RESET}",
+                        f"  {ConsoleUI.CYAN}📂  {current_dir[0]}{ConsoleUI.RESET}",
+                    ])
+                except Exception as e:
+                    ConsoleUI.result_screen([f"  {ConsoleUI.RED}✖  {e}{ConsoleUI.RESET}"])
+
+        elif choice == 1:
+            try:
+                if os.name == "nt":
+                    os.startfile(current_dir[0])
+                else:
+                    subprocess.run(["xdg-open", current_dir[0]], check=False)
+                time.sleep(1)
+            except Exception as e:
+                ConsoleUI.result_screen([f"  {ConsoleUI.RED}✖  {e}{ConsoleUI.RESET}"])
+
+
 # ── Aide CLI ──────────────────────────────────────────────────────────────────
 def show_usage():
     print("Usage:")
@@ -1324,9 +1445,38 @@ def main():
 
         # ── PC : interface ConsoleUI ───────────────────────────────────────
         else:
+            # ── Vérification / initialisation de la configuration ─────────
+            config_file   = _config_path()
+            config_exists = config_file and os.path.isfile(config_file)
+            cfg           = _load_config()
+            saved_dir     = cfg.get("download_dir", "")
+
+            if not config_exists:
+                # Premier lancement : demander le dossier
+                ConsoleUI.clear()
+                ConsoleUI.print_logo()
+                ConsoleUI.result_screen([
+                    f"  {ConsoleUI.CYAN}{ConsoleUI.BOLD}Bienvenue dans Co-Chan !{ConsoleUI.RESET}",
+                    "",
+                    f"  {ConsoleUI.DIM}Aucune configuration trouvée.{ConsoleUI.RESET}",
+                    f"  {ConsoleUI.DIM}Veuillez choisir un dossier de téléchargement.{ConsoleUI.RESET}",
+                ])
+                _ask_dest_dir_pc()
+            elif not saved_dir or not os.path.isdir(saved_dir):
+                # Config présente mais le dossier n'existe plus
+                ConsoleUI.clear()
+                ConsoleUI.print_logo()
+                ConsoleUI.result_screen([
+                    f"  {ConsoleUI.YELLOW}⚠  Le dossier de téléchargement est introuvable :{ConsoleUI.RESET}",
+                    f"  {ConsoleUI.DIM}{saved_dir or '(non défini)'}{ConsoleUI.RESET}",
+                    "",
+                    f"  {ConsoleUI.DIM}Veuillez en choisir un nouveau.{ConsoleUI.RESET}",
+                ])
+                _ask_dest_dir_pc()
+
             while True:
                 choice = ConsoleUI.navigate(
-                    ["🌸  Télécharger un anime", "❓  Aide / Usage", "❌  Quitter"],
+                    ["🌸  Télécharger un anime", "⚙️   Paramètres", "❓  Aide / Usage", "❌  Quitter"],
                     "MENU PRINCIPAL"
                 )
 
@@ -1374,6 +1524,10 @@ def main():
                     break
 
                 if choice == 1:
+                    menu_settings_pc()
+                    continue
+
+                if choice == 2:
                     ConsoleUI.clear()
                     ConsoleUI.print_logo()
                     show_usage()
