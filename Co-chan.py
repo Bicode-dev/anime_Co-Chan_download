@@ -37,16 +37,7 @@ def _is_termux():
         or "com.termux" in os.environ.get("PREFIX", "")
     ))
 
-def _is_android():
-    """Détecte Android : Termux ET Pydroid3 (et autres runners Python Android)."""
-    if _is_termux():
-        return True
-    # Pydroid3 / QPython / autres : pas de var Termux mais le stockage Android est présent
-    if os.name != "nt" and os.path.isdir("/storage/emulated/0"):
-        return True
-    return False
-
-IS_ANDROID = _is_android()
+IS_ANDROID = _is_termux()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -604,16 +595,7 @@ def get_download_path():
     s = platform.system()
     if s == "Windows":
         return os.getcwd()
-    if IS_ANDROID:
-        # Dossier principal : visible dans la galerie et les gestionnaires de fichiers
-        preferred = "/storage/emulated/0/Movies/CoTEAM/Co-chan"
-        try:
-            os.makedirs(preferred, exist_ok=True)
-            if os.access(preferred, os.W_OK):
-                return preferred
-        except Exception:
-            pass
-        # Fallback si le stockage interne n'est pas accessible (permissions manquantes)
+    if s == "Linux" and "ANDROID_STORAGE" in os.environ:
         termux_dl = os.path.expanduser("~/storage/downloads")
         if os.path.exists(termux_dl):
             return termux_dl
