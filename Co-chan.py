@@ -43,16 +43,30 @@ def _is_termux():
 IS_ANDROID = _is_termux()
 
 
-# ── Configuration (PC uniquement) ─────────────────────────────────────────────
+# ── Configuration ─────────────────────────────────────────────────────────────
+def _script_dir():
+    """Retourne le dossier où le script est lancé."""
+    return os.path.dirname(os.path.abspath(sys.argv[0]))
+
+
+def _is_in_appdata():
+    """Vérifie si le script est lancé depuis AppData (Windows)."""
+    if os.name != "nt":
+        return False
+    appdata = os.environ.get("LOCALAPPDATA", "").lower()
+    script = _script_dir().lower()
+    return appdata and script.startswith(appdata)
+
+
 def _config_path():
-    """Retourne le chemin du fichier de config, ou None sur Android (pas de config)."""
+    """Retourne le chemin du fichier de config JSON, ou None sur Android."""
     if IS_ANDROID:
         return None
     if os.name == "nt":
         local_app = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
         return os.path.join(local_app, "CoTEAM", "Co-Chan", "co-chan_config.json")
     # Linux/macOS hors Android
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "co-chan_config.json")
+    return os.path.join(_script_dir(), "co-chan_config.json")
 
 
 def _load_config():
@@ -127,14 +141,13 @@ class ConsoleUI:
         i = 0
         while i < len(s):
             cp = ord(s[i])
-            # Saut des modificateurs qui ne prennent pas de place visuelle
             if cp in (0xFE0E, 0xFE0F, 0x200D, 0x20E3):
                 i += 1
                 continue
-            if 0x0300 <= cp <= 0x036F:  # diacritiques combinants
+            if 0x0300 <= cp <= 0x036F:
                 i += 1
                 continue
-            if 0x1F3FB <= cp <= 0x1F3FF:  # modificateurs de teinte de peau
+            if 0x1F3FB <= cp <= 0x1F3FF:
                 i += 1
                 continue
             is_emoji = (0x1F000 <= cp <= 0x1FFFF or 0x2600 <= cp <= 0x27BF
@@ -144,23 +157,20 @@ class ConsoleUI:
             is_hangul = 0xAC00 <= cp <= 0xD7AF
             if is_emoji or is_cjk or is_hangul:
                 count += 2
-                # Consommer les caractères suivants liés par ZWJ (émoji composé)
-                # Ex: 👨‍👩‍👧 = 3 emojis + 2 ZWJ → compte comme 2, pas 6
                 j = i + 1
                 while j < len(s):
                     ncp = ord(s[j])
-                    if ncp == 0x200D:  # ZWJ : lier au prochain emoji
+                    if ncp == 0x200D:
                         j += 1
                         continue
-                    if ncp in (0xFE0E, 0xFE0F, 0x20E3):  # variation/keycap
+                    if ncp in (0xFE0E, 0xFE0F, 0x20E3):
                         j += 1
                         continue
-                    if 0x1F3FB <= ncp <= 0x1F3FF:  # teinte de peau
+                    if 0x1F3FB <= ncp <= 0x1F3FF:
                         j += 1
                         continue
                     if (0x1F000 <= ncp <= 0x1FFFF or 0x2600 <= ncp <= 0x27BF
                             or 0x2B00 <= ncp <= 0x2BFF):
-                        # Emoji suivant dans la séquence ZWJ : skip sans compter
                         j += 1
                         continue
                     break
@@ -363,7 +373,7 @@ class ConsoleUI:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  INTERFACE ANDROID — SimpleUI (print/input classiques, style old.py)
+#  INTERFACE ANDROID — SimpleUI (print/input classiques)
 # ══════════════════════════════════════════════════════════════════════════════
 class SimpleUI:
     """Interface texte simple pour Android/Termux."""
@@ -379,7 +389,6 @@ class SimpleUI:
 
     @staticmethod
     def navigate(options, title="MENU", subtitle=""):
-        """Affiche un menu numéroté et retourne l'index choisi (0-based), -1 = retour."""
         while True:
             SimpleUI.clear()
             SimpleUI.print_logo()
@@ -451,36 +460,30 @@ class SimpleUI:
         print("─" * 40)
 
 
-# ── Façade UI : sélectionne automatiquement la bonne interface ────────────────
+# ── Façade UI ─────────────────────────────────────────────────────────────────
 UI = SimpleUI if IS_ANDROID else ConsoleUI
 
 
 # ── Dépendances optionnelles ──────────────────────────────────────────────────
 pil_available = importlib.util.find_spec("PIL") is not None
-Image = None  # will be replaced by actual class if PIL is available
+Image = None
 if pil_available:
     from PIL import Image  # noqa: F811
 
 
 # ── Loggers yt-dlp ────────────────────────────────────────────────────────────
 class _SilentLogger:
-    """Absorbe tous les messages de yt-dlp (PC)."""
-    def debug(self, msg):
-        pass
-    def warning(self, msg):
-        pass
-    def error(self, msg):
-        pass
+    """Absorbe tous les messages de yt-dlp."""
+    def debug(self, msg):   pass
+    def warning(self, msg): pass
+    def error(self, msg):   pass
 
 
 class _AndroidLogger:
     """Affiche les erreurs yt-dlp sur Android."""
-    def debug(self, msg):
-        pass
-    def warning(self, msg):
-        pass
-    def error(self, msg):
-        print(msg)
+    def debug(self, msg):   pass
+    def warning(self, msg): pass
+    def error(self, msg):   print(msg)
 
 
 # ── Utilitaires plateforme ────────────────────────────────────────────────────
@@ -536,7 +539,11 @@ def get_active_domain():
                 base_domain = match.group(1)
                 is_valid, redirected_url = verify_domain_redirect(base_domain)
                 if is_valid:
-                    redirected_domain = redirected_url.split("/catalogue")[0] if "/catalogue" in redirected_url else redirected_url.rstrip("/")
+                    redirected_domain = (
+                        redirected_url.split("/catalogue")[0]
+                        if "/catalogue" in redirected_url
+                        else redirected_url.rstrip("/")
+                    )
                     UI.success("Serveur actif trouvé.")
                     return f"{redirected_domain}/catalogue/"
 
@@ -546,7 +553,11 @@ def get_active_domain():
                 base_domain = match_fallback.group(1)
                 is_valid, redirected_url = verify_domain_redirect(base_domain)
                 if is_valid:
-                    redirected_domain = redirected_url.split("/catalogue")[0] if "/catalogue" in redirected_url else redirected_url.rstrip("/")
+                    redirected_domain = (
+                        redirected_url.split("/catalogue")[0]
+                        if "/catalogue" in redirected_url
+                        else redirected_url.rstrip("/")
+                    )
                     UI.success(f"Serveur actif trouvé : {redirected_domain}")
                     return f"{redirected_domain}/catalogue/"
 
@@ -573,11 +584,9 @@ def check_disk_space(min_gb=1):
     if s == "Windows":
         total_c, used_c, free_c = shutil.disk_usage("C:\\")
         free_space_c_mb = free_c / (1024**2)
-
         if free_space_c_mb < 100:
             print(f"⚠️ Espace insuffisant sur C: ({free_space_c_mb:.0f} Mo disponibles, 100 Mo requis)")
             return False
-
         current_drive = os.path.splitdrive(os.getcwd())[0] + "\\"
         total, used, free = shutil.disk_usage(current_drive)
         free_space_gb = free / (1024**3)
@@ -598,10 +607,9 @@ def check_disk_space(min_gb=1):
             except Exception:
                 continue
         if free_space_gb is None:
-            print("⚠️ Impossible de vérifier l'espace disque (aucun chemin accessible).")
-            print("   Raison probable : permissions manquantes — exécutez 'termux-setup-storage'.")
-            print("   Le téléchargement continue malgré tout.")
+            print("⚠️ Impossible de vérifier l'espace disque. Le téléchargement continue.")
             return True
+
     elif s == "Darwin" and is_ios_device():
         try:
             home_path = os.path.expanduser("~")
@@ -610,7 +618,7 @@ def check_disk_space(min_gb=1):
                 free_space_gb = free / (1024**3)
             else:
                 free_space_gb = 0
-        except:
+        except Exception:
             free_space_gb = 0
     else:
         statvfs = os.statvfs("/")
@@ -632,7 +640,13 @@ def progress_hook(d, season, episode, max_episode):
 
 # ── Chemin de téléchargement ──────────────────────────────────────────────────
 def get_download_path():
-    # Android : chemin fixe, pas de config
+    """
+    Retourne le dossier de téléchargement :
+    - Android : /storage/emulated/0/Download/Anime
+    - iOS     : Documents/anime ou Downloads/anime
+    - PC      : dossier sauvegardé en config, sinon dossier du script
+    """
+    # Android
     if IS_ANDROID:
         path = "/storage/emulated/0/Download/Anime"
         try:
@@ -641,8 +655,9 @@ def get_download_path():
             pass
         return path
 
-    # iOS
     s = platform.system()
+
+    # iOS
     if s == "Darwin" and is_ios_device():
         for path in [
             os.path.expanduser("~/Documents/anime"),
@@ -657,17 +672,14 @@ def get_download_path():
                 continue
         return os.path.join(os.getcwd(), "anime")
 
-    # PC : lire depuis la config
+    # PC : lire depuis la config si l'utilisateur a personnalisé le dossier
     cfg = _load_config()
     saved = cfg.get("download_dir", "")
     if saved and os.path.isdir(saved):
         return saved
 
-    # Fallback (ne devrait pas arriver si main() a bien configuré le dossier)
-    if os.name == "nt":
-        local_app = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-        return os.path.join(local_app, "CoTEAM", "Co-Chan")
-    return os.path.join(os.path.expanduser("~"), "Downloads", "Anime")
+    # Défaut : dossier où le script est lancé
+    return _script_dir()
 
 
 # ── Formatage ─────────────────────────────────────────────────────────────────
@@ -799,7 +811,7 @@ def custom_sort_key(x):
     return (3, str(x))
 
 
-# ── resolve_season_choices : PC vs Android ────────────────────────────────────
+# ── resolve_season_choices ────────────────────────────────────────────────────
 def resolve_season_choices(season_info):
     final_seasons = []
     for key, info in sorted(season_info.items(), key=lambda x: custom_sort_key(x[0])):
@@ -823,10 +835,7 @@ def resolve_season_choices(season_info):
                     ["🎬  Version Normale", "⭐  Version HS (Hors-Série)"],
                     f"SAISON {key} — CHOISIR",
                 )
-                if idx == -1:
-                    chosen_url = info["normal"]
-                    display = key
-                elif idx == 0:
+                if idx in (-1, 0):
                     chosen_url = info["normal"]
                     display = key
                 else:
@@ -893,11 +902,11 @@ def get_actual_total_episodes_for_season(url_list):
     return count
 
 
-# ── ask_for_starting_point : PC vs Android ────────────────────────────────────
+# ── ask_for_starting_point ────────────────────────────────────────────────────
 def ask_for_starting_point(folder_name, seasons):
     """
     Retourne (start_season, start_episode, only_season, only_episode).
-    Android : interface old.py (input/print), retourne only_season/only_episode=False.
+    Android : interface simple (input/print), retourne only_season/only_episode=False.
     PC      : interface ConsoleUI avec menus interactifs et options avancées.
     """
     download_dir = os.path.join(get_download_path(), folder_name)
@@ -976,7 +985,6 @@ def ask_for_starting_point(folder_name, seasons):
                         )
                         if idx == 0:
                             return next_season, 1, False, False
-                        # idx == 1 ou ESC (-1) → rester, on continue vers le menu principal
                     else:
                         ConsoleUI.success("🎉 Tous les épisodes disponibles ont été téléchargés !")
                         idx = ConsoleUI.navigate(
@@ -1075,15 +1083,22 @@ def check_http_403(url):
     return True
 
 
-# ── Image de couverture ───────────────────────────────────────────────────────
+# ── Image de couverture (icône du dossier) ────────────────────────────────────
 def get_anime_image(anime_name, folder_name, formatted_url_name):
+    """
+    Télécharge le cover de l'anime (GitHub Anime-Sama → fallback Jikan),
+    l'enregistre en cover.jpg et crée une icône de dossier Windows (.ico + desktop.ini).
+    """
     try:
         image_data = None
+
+        # Tentative 1 : GitHub Anime-Sama
         github_url = f"https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/{formatted_url_name}.jpg"
         github_response = requests.get(github_url, timeout=10)
         if github_response.status_code == 200:
             image_data = github_response.content
         else:
+            # Tentative 2 : fallback API Jikan
             url_name = anime_name.replace(" ", "+")
             jikan_url = f"https://api.jikan.moe/v4/anime?q={url_name}&limit=1"
             jikan_response = requests.get(jikan_url, timeout=10)
@@ -1099,10 +1114,12 @@ def get_anime_image(anime_name, folder_name, formatted_url_name):
         if not image_data:
             return
 
+        # Sauvegarder le cover.jpg
         jpg_path = os.path.join(folder_name, "cover.jpg")
         with open(jpg_path, 'wb') as f:
             f.write(image_data)
 
+        # Créer l'icône de dossier Windows
         if pil_available and platform.system() == "Windows":
             ico_path = os.path.join(folder_name, "folder.ico")
             image = Image.open(io.BytesIO(image_data))
@@ -1118,27 +1135,32 @@ def get_anime_image(anime_name, folder_name, formatted_url_name):
                 resized_img = image.resize((new_width, size))
                 square_img.paste(resized_img, ((size - new_width) // 2, 0))
             square_img.save(ico_path, format='ICO', sizes=[(size, size)])
+
             if os.name == 'nt':
                 os.system(f'attrib +h "{ico_path}"')
+
             absolute_ico_path = os.path.abspath(ico_path)
             desktop_ini_path = os.path.join(folder_name, "desktop.ini")
-            with open(desktop_ini_path, "w", encoding="utf-8") as ini_file:
-                ini_file.write(f"""[.ShellClassInfo]
-IconResource={absolute_ico_path},0
-[ViewState]
-Mode=
-Vid=
-FolderType=Generic
-""")
+            with open(desktop_ini_path, "w") as ini_file:
+                ini_file.write(
+                    f"[.ShellClassInfo]\n"
+                    f"IconResource={absolute_ico_path},0\n"
+                    f"[ViewState]\nMode=\nVid=\nFolderType=Generic\n"
+                )
             if os.name == 'nt':
                 os.system(f'attrib +s "{folder_name}"')
                 os.system(f'attrib +h +s "{desktop_ini_path}"')
+
     except Exception:
         pass
 
 
-# ── Extraction m3u8 Vidmoly ───────────────────────────────────────────────────
+# ── Extraction m3u8 Vidmoly (silencieuse) ─────────────────────────────────────
 def get_vidmoly_m3u8(video_id):
+    """
+    Extrait l'URL m3u8 depuis Vidmoly.
+    5 tentatives silencieuses — retourne None en cas d'échec (404 ou autre).
+    """
     session = requests.Session()
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -1156,8 +1178,7 @@ def get_vidmoly_m3u8(video_id):
         try:
             resp = session.get(url, headers=headers, timeout=15)
             if resp.status_code == 404:
-                print(f"⚠️ Vidmoly ID '{video_id}' introuvable (404)")
-                return None
+                return None   # 404 immédiat → inutile de réessayer
             text = resp.content.decode("utf-8", errors="ignore")
             m3u8 = re.search(r'https?://[^\s"\']+\.m3u8[^\s"\']*', text)
             if m3u8:
@@ -1166,7 +1187,6 @@ def get_vidmoly_m3u8(video_id):
             pass
         if attempt < 4:
             time.sleep(1)
-    print(f"⚠️ Aucun flux m3u8 trouvé pour vidmoly ID '{video_id}'")
     return None
 
 
@@ -1207,6 +1227,11 @@ def parse_eps_arrays(js_text):
 
 
 def extract_video_links(url):
+    """
+    Récupère TOUS les epsX depuis le JS anime-sama.
+    Retourne une liste de listes de tuples (link_type, link_value).
+    Le premier élément est le meilleur lecteur, les suivants sont les fallbacks.
+    """
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
@@ -1220,15 +1245,23 @@ def extract_video_links(url):
 
 
 # ── Téléchargement ────────────────────────────────────────────────────────────
-def download_video(link_type, link_value, filename, season, episode, max_episode):
+def download_video(link_type, link_value, filename, season, episode, max_episode,
+                   silent=False):
+    """
+    Télécharge un épisode.
+
+    silent=True : aucun message affiché (utilisé pour les tentatives de fallback).
+    silent=False (défaut) : affiche le pourcentage et le statut.
+    """
     if not check_disk_space():
-        print(f"⛔ Espace disque insuffisant. Arrêt pour [S{season} E{episode}/{max_episode}].")
+        if not silent:
+            print(f"⛔ Espace disque insuffisant. Arrêt pour [S{season} E{episode}/{max_episode}].")
         return False
 
     if link_type == "vidmoly":
         final_url = get_vidmoly_m3u8(link_value)
         if not final_url:
-            return False
+            return False   # Échec silencieux → géré par le fallback
         video_format = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best"
     else:
         final_url    = link_value
@@ -1242,15 +1275,23 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
         temp_dir = os.path.join(tempfile.gettempdir(), "anime-dl", anime_folder_name)
     os.makedirs(temp_dir, exist_ok=True)
 
-    logger = _AndroidLogger() if IS_ANDROID else _SilentLogger()
+    # En mode silencieux (fallback), on supprime tout output
+    if silent:
+        logger = _SilentLogger()
+        hooks  = []
+        quiet  = True
+    else:
+        logger = _AndroidLogger() if IS_ANDROID else _SilentLogger()
+        hooks  = [lambda d: progress_hook(d, season, episode, max_episode)]
+        quiet  = False
 
     ydl_opts = {
         "outtmpl":             filename,
-        "quiet":               False if IS_ANDROID else True,
+        "quiet":               quiet,
         "ignoreerrors":        True,
-        "no_warnings":         True,
-        "noprogress":          False,
-        "progress_hooks":      [lambda d: progress_hook(d, season, episode, max_episode)],
+        "no_warnings":        True,
+        "noprogress":          silent,
+        "progress_hooks":      hooks,
         "format":              video_format,
         "merge_output_format": "mp4",
         "logger":              logger,
@@ -1278,41 +1319,19 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
 
 
 # ── Paramètres PC ─────────────────────────────────────────────────────────────
-def _ask_dest_dir_pc():
-    """Demande à l'utilisateur où télécharger les animes et sauvegarde le choix."""
-    while True:
-        new = ConsoleUI.input_screen(
-            "DOSSIER DE TÉLÉCHARGEMENT",
-            "Chemin complet du dossier de téléchargement",
-            subtitle="Ce choix sera sauvegardé dans la configuration.",
-        )
-        if not new:
-            ConsoleUI.warn("Aucun chemin saisi. Veuillez en entrer un.")
-            time.sleep(0.8)
-            continue
-        try:
-            os.makedirs(new, exist_ok=True)
-            chosen = os.path.abspath(new)
-            _save_config({"download_dir": chosen})
-            ConsoleUI.result_screen([
-                f"  {ConsoleUI.GREEN}✔  Dossier configuré !{ConsoleUI.RESET}",
-                f"  {ConsoleUI.CYAN}📂  {chosen}{ConsoleUI.RESET}",
-            ])
-            return chosen
-        except Exception as e:
-            ConsoleUI.result_screen([f"  {ConsoleUI.RED}✖  {e}{ConsoleUI.RESET}"])
-
-
 def menu_settings_pc():
     """Menu paramètres PC : changer / ouvrir le dossier de téléchargement."""
     current_dir = [get_download_path()]
+    cfg = _load_config()
+    default_label = "" if cfg.get("download_dir") else " (dossier du script, modifiable ci-dessous)"
+
     while True:
         choice = ConsoleUI.navigate(
             ["📁  Changer le dossier de téléchargement",
              "📂  Ouvrir le dossier actuel",
              "🔙  Retour"],
             "PARAMÈTRES",
-            subtitle=f"Dossier actuel : {current_dir[0]}",
+            subtitle=f"Dossier actuel : {current_dir[0]}{default_label}",
         )
         if choice in (-1, 2):
             return
@@ -1328,6 +1347,7 @@ def menu_settings_pc():
                     os.makedirs(new, exist_ok=True)
                     current_dir[0] = os.path.abspath(new)
                     _save_config({"download_dir": current_dir[0]})
+                    default_label = ""
                     ConsoleUI.result_screen([
                         f"  {ConsoleUI.GREEN}✔  Dossier mis à jour !{ConsoleUI.RESET}",
                         f"  {ConsoleUI.CYAN}📂  {current_dir[0]}{ConsoleUI.RESET}",
@@ -1362,7 +1382,7 @@ def show_usage():
 
 # ── Point d'entrée ────────────────────────────────────────────────────────────
 def main():
-    # Initialisation de l'affichage selon la plateforme
+    # ── Initialisation affichage ──────────────────────────────────────────────
     if IS_ANDROID:
         pass
     else:
@@ -1384,8 +1404,8 @@ def main():
             show_usage()
             return
         if len(sys.argv) == 3:
-            anime_name          = normalize_anime_name(sys.argv[1])
-            language_input      = sys.argv[2].strip().lower()
+            anime_name             = normalize_anime_name(sys.argv[1])
+            language_input         = sys.argv[2].strip().lower()
             anime_name_capitalized = anime_name.title()
             set_title(f"Co-Chan : {anime_name_capitalized}")
             if language_input not in ["vf", "vostfr", "va", "vkr", "vcn", "vqc"]:
@@ -1401,109 +1421,52 @@ def main():
         formatted_url_name = format_url_name(anime_name)
         UI.info(f"Vérification de '{anime_name_capitalized}'...")
         if not check_anime_exists(base_url, formatted_url_name):
-            UI.error(f"L'anime '{anime_name_capitalized}' est introuvable.")
-            UI.warn("Vérifiez l'orthographe ou essayez le nom japonais.")
-            time.sleep(5)
-            sys.exit(1)
+            UI.error(f"L'anime '{anime_name_capitalized}' n'existe pas.")
+            return
+
         UI.success(f"Anime '{anime_name_capitalized}' trouvé !")
 
-    # ── Mode interactif ───────────────────────────────────────────────────────
-    else:
-        # ── ANDROID : interface old.py ─────────────────────────────────────
-        if IS_ANDROID:
-            anime_name_raw = input("Entrez le nom de l'anime : ").strip()
-            if not anime_name_raw:
-                return
+    # ── Mode interactif PC ────────────────────────────────────────────────────
+    elif not IS_ANDROID:
+        anime_name_capitalized = None
+        selected_language      = None
+        formatted_url_name     = None
 
-            anime_name             = normalize_anime_name(anime_name_raw)
-            anime_name_capitalized = anime_name.title()
-            set_title(f"Co-Chan : {anime_name_capitalized}")
-            formatted_url_name     = format_url_name(anime_name)
+        while True:
+            choice = ConsoleUI.navigate(
+                ["🔍  Rechercher un anime",
+                 "⚙️   Paramètres",
+                 "❓  Aide",
+                 "❌  Quitter"],
+                "MENU PRINCIPAL",
+            )
 
-            UI.info(f"Vérification de '{anime_name_capitalized}'...")
-            if not check_anime_exists(base_url, formatted_url_name):
-                UI.error(f"'{anime_name_capitalized}' introuvable.")
-                UI.warn("Vérifiez l'orthographe ou essayez avec le nom japonais.")
-                time.sleep(5)
-                sys.exit(1)
-            UI.success(f"Anime '{anime_name_capitalized}' trouvé !")
-
-            available_vf_versions = check_available_languages(base_url, formatted_url_name)
-            if available_vf_versions:
-                print("\nVersions disponibles :")
-                for i, lang in enumerate(available_vf_versions, start=1):
-                    print(f"  {i}. {lang.upper()}")
-                print(f"  {len(available_vf_versions)+1}. VOSTFR")
-                choice = input("Choisissez la version : ").strip()
-                if choice.isdigit() and 1 <= int(choice) <= len(available_vf_versions):
-                    selected_language = available_vf_versions[int(choice) - 1]
-                else:
-                    selected_language = "vostfr"
-            else:
-                UI.warn("Aucune version VF trouvée → VOSTFR sélectionné automatiquement.")
-                selected_language = "vostfr"
-
-        # ── PC : interface ConsoleUI ───────────────────────────────────────
-        else:
-            # ── Vérification / initialisation de la configuration ─────────
-            config_file   = _config_path()
-            config_exists = config_file and os.path.isfile(config_file)
-            cfg           = _load_config()
-            saved_dir     = cfg.get("download_dir", "")
-
-            if not config_exists:
-                # Premier lancement : demander le dossier
-                ConsoleUI.clear()
-                ConsoleUI.print_logo()
-                ConsoleUI.result_screen([
-                    f"  {ConsoleUI.CYAN}{ConsoleUI.BOLD}Bienvenue dans Co-Chan !{ConsoleUI.RESET}",
-                    "",
-                    f"  {ConsoleUI.DIM}Aucune configuration trouvée.{ConsoleUI.RESET}",
-                    f"  {ConsoleUI.DIM}Veuillez choisir un dossier de téléchargement.{ConsoleUI.RESET}",
-                ])
-                _ask_dest_dir_pc()
-            elif not saved_dir or not os.path.isdir(saved_dir):
-                # Config présente mais le dossier n'existe plus
-                ConsoleUI.clear()
-                ConsoleUI.print_logo()
-                ConsoleUI.result_screen([
-                    f"  {ConsoleUI.YELLOW}⚠  Le dossier de téléchargement est introuvable :{ConsoleUI.RESET}",
-                    f"  {ConsoleUI.DIM}{saved_dir or '(non défini)'}{ConsoleUI.RESET}",
-                    "",
-                    f"  {ConsoleUI.DIM}Veuillez en choisir un nouveau.{ConsoleUI.RESET}",
-                ])
-                _ask_dest_dir_pc()
-
-            while True:
-                choice = ConsoleUI.navigate(
-                    ["🌸  Télécharger un anime", "⚙️   Paramètres", "❓  Aide / Usage", "❌  Quitter"],
-                    "MENU PRINCIPAL"
-                )
-
-                if choice == 0:
-                    anime_name_raw = ConsoleUI.input_screen(
-                        "TÉLÉCHARGER UN ANIME", "Nom de l'anime",
-                        "Entrez le nom exact ou approximatif"
+            if choice == 0:
+                while True:
+                    raw = ConsoleUI.input_screen(
+                        "RECHERCHE",
+                        "Nom de l'anime",
+                        subtitle="Appuyez sur Entrée pour confirmer",
                     )
-                    if not anime_name_raw:
-                        continue
-
-                    anime_name             = normalize_anime_name(anime_name_raw)
+                    if not raw:
+                        break
+                    anime_name             = normalize_anime_name(raw)
                     anime_name_capitalized = anime_name.title()
-                    set_title(f"Co-Chan : {anime_name_capitalized}")
                     formatted_url_name     = format_url_name(anime_name)
+                    set_title(f"Co-Chan : {anime_name_capitalized}")
 
-                    ConsoleUI.clear()
-                    ConsoleUI.print_logo()
-                    ConsoleUI.sep()
-                    ConsoleUI.info(f"Vérification de '{anime_name_capitalized}'...")
-
-                    if not check_anime_exists(base_url, formatted_url_name):
-                        ConsoleUI.error(f"'{anime_name_capitalized}' introuvable.")
-                        ConsoleUI.warn("Vérifiez l'orthographe ou essayez avec le nom japonais.")
+                    if not IS_ANDROID:
+                        ConsoleUI.clear()
+                        ConsoleUI.print_logo()
                         ConsoleUI.sep()
+                    UI.info(f"Vérification de '{anime_name_capitalized}'...")
+                    if not check_anime_exists(base_url, formatted_url_name):
+                        UI.error(
+                            f"L'anime '{anime_name_capitalized}' est introuvable. "
+                            "Vérifiez l'orthographe ou essayez le nom japonais."
+                        )
                         try:
-                            input(f"  {ConsoleUI.DIM}Appuyez sur Entrée pour continuer...{ConsoleUI.RESET}")
+                            input(f"\n  {ConsoleUI.DIM}Appuyez sur Entrée...{ConsoleUI.RESET}")
                         except (EOFError, OSError):
                             pass
                         continue
@@ -1523,19 +1486,21 @@ def main():
                         selected_language = "vostfr"
                     break
 
-                if choice == 1:
-                    menu_settings_pc()
-                    continue
+            elif choice == 1:
+                menu_settings_pc()
+                continue
 
-                if choice == 2:
-                    ConsoleUI.clear()
-                    ConsoleUI.print_logo()
-                    show_usage()
-                    try:
-                        input(f"\n  {ConsoleUI.DIM}Appuyez sur Entrée pour revenir au menu...{ConsoleUI.RESET}")
-                    except (EOFError, OSError):
-                        pass
-                    continue
+            elif choice == 2:
+                ConsoleUI.clear()
+                ConsoleUI.print_logo()
+                show_usage()
+                try:
+                    input(f"\n  {ConsoleUI.DIM}Appuyez sur Entrée pour revenir au menu...{ConsoleUI.RESET}")
+                except (EOFError, OSError):
+                    pass
+                continue
+
+            else:
                 ConsoleUI.result_screen([
                     f"  {ConsoleUI.CYAN}👋  Merci d'avoir utilisé Co-Chan !{ConsoleUI.RESET}",
                     "  🌸  À bientôt !",
@@ -1543,6 +1508,41 @@ def main():
                 time.sleep(1)
                 sys.exit(0)
 
+            # Sortie du while si une anime a bien été sélectionné
+            if anime_name_capitalized and selected_language:
+                break
+
+    # ── Mode interactif Android ───────────────────────────────────────────────
+    else:
+        SimpleUI.print_logo()
+        anime_name             = normalize_anime_name(input("Entrez le nom de l'anime : "))
+        anime_name_capitalized = anime_name.title()
+        formatted_url_name     = format_url_name(anime_name)
+        set_title(f"Co-Chan : {anime_name_capitalized}")
+
+        print(f"🔍 Vérification de '{anime_name_capitalized}'...")
+        if not check_anime_exists(base_url, formatted_url_name):
+            print(f"❌ L'anime '{anime_name_capitalized}' n'existe pas.")
+            time.sleep(5)
+            sys.exit(1)
+        print(f"✅ Anime '{anime_name_capitalized}' trouvé !")
+
+        available_vf_versions = check_available_languages(base_url, formatted_url_name)
+        if available_vf_versions:
+            print("\nVersions disponibles :")
+            for i, lang in enumerate(available_vf_versions, 1):
+                print(f"  {i}. {lang.upper()}")
+            print(f"  {len(available_vf_versions)+1}. VOSTFR")
+            choice = input("Choisissez la version : ").strip()
+            if choice.isdigit() and 1 <= int(choice) <= len(available_vf_versions):
+                selected_language = available_vf_versions[int(choice)-1]
+            else:
+                selected_language = "vostfr"
+        else:
+            print("⚠️ Aucune version VF trouvée → VOSTFR sélectionné.")
+            selected_language = "vostfr"
+
+    # ── Préparation du téléchargement ─────────────────────────────────────────
     folder_name = format_folder_name(anime_name_capitalized, selected_language)
 
     if not check_disk_space():
@@ -1570,13 +1570,14 @@ def main():
     if start_season is None:
         return
 
-    # ── Boucle de téléchargement — logique Co-chan.py (fallback multi-lecteur) ─
+    # ── Boucle de téléchargement avec fallback multi-lecteur ──────────────────
     for display_season, url_list in seasons:
         if only_season and start_season != 0 and display_season != start_season:
             continue
         if only_episode and display_season != start_season:
             continue
 
+        # Charger TOUS les eps arrays pour permettre les fallbacks
         all_eps_arrays = []
         for url in url_list:
             eps_arrays = extract_video_links(url)
@@ -1586,9 +1587,9 @@ def main():
         if not all_eps_arrays:
             continue
 
-        current_eps_array_index   = 0
-        all_links                 = all_eps_arrays[current_eps_array_index]
-        total_episodes_in_season  = max(len(arr) for arr in all_eps_arrays)
+        current_eps_array_index  = 0
+        all_links                = all_eps_arrays[current_eps_array_index]
+        total_episodes_in_season = max(len(arr) for arr in all_eps_arrays)
 
         if total_episodes_in_season == 0:
             continue
@@ -1626,7 +1627,7 @@ def main():
         while episode_counter <= total_episodes_in_season:
             episode_index = episode_counter - 1
 
-            # Animation de chargement
+            # Animation de chargement (Android)
             if IS_ANDROID:
                 sys.stdout.write("🌐 Chargement")
                 sys.stdout.flush()
@@ -1637,7 +1638,7 @@ def main():
                 sys.stdout.write("\r")
                 sys.stdout.flush()
 
-            # Récupérer le lien depuis le lecteur courant, ou passer directement au fallback
+            # Récupérer le lien du lecteur principal, ou forcer le fallback
             if episode_index < len(all_links):
                 link_type, link_value = all_links[episode_index]
                 if link_type == "sibnet" and check_http_403(link_value):
@@ -1647,55 +1648,68 @@ def main():
                     continue
                 primary_ok = True
             else:
-                # Le lecteur courant n'a pas cet épisode → forcer le fallback
-                primary_ok = False
+                primary_ok = False  # Le lecteur courant n'a pas cet épisode
 
             download_dir = os.path.join(get_download_path(), folder_name)
             os.makedirs(download_dir, exist_ok=True)
 
+            # Icône de dossier au premier épisode de la première saison
             if episode_counter == 1 and display_season == seasons[0][0]:
                 get_anime_image(anime_name_capitalized, download_dir, formatted_url_name)
 
             filename = os.path.join(download_dir, f"s{display_season}_e{episode_counter}.mp4")
 
+            # ── Tentative avec le lecteur principal ───────────────────────────
             success = False
             if primary_ok:
-                success = download_video(link_type, link_value, filename,
-                                         display_season, episode_counter, total_episodes_in_season)
+                success = download_video(
+                    link_type, link_value, filename,
+                    display_season, episode_counter, total_episodes_in_season,
+                    silent=False,
+                )
 
+            # ── Fallback multi-lecteur (silencieux) ───────────────────────────
             if not success:
-                # ── Fallback multi-lecteur ───────────────────────────────────
                 fallback_success = False
                 for fallback_index, fallback_links_candidate in enumerate(all_eps_arrays):
                     if fallback_index == current_eps_array_index:
-                        continue
+                        continue  # Sauter le lecteur déjà essayé
+
                     fallback_links = fallback_links_candidate
                     if len(fallback_links) >= episode_counter:
                         fb_type, fb_value = fallback_links[episode_counter - 1]
-                        print(f"🔄 Lecteur {fallback_index + 1} pour "
-                              f"S{display_season} E{episode_counter} ({fb_type})...")
-                        success = download_video(fb_type, fb_value, filename,
-                                                 display_season, episode_counter,
-                                                 total_episodes_in_season)
+
+                        # Téléchargement silencieux : aucun message de progression ni d'erreur
+                        success = download_video(
+                            fb_type, fb_value, filename,
+                            display_season, episode_counter, total_episodes_in_season,
+                            silent=True,
+                        )
+
                         if success:
+                            # Basculer sur ce lecteur pour les prochains épisodes
                             current_eps_array_index = fallback_index
                             all_links = fallback_links
-                            # Ne pas réduire total_episodes_in_season : on garde le max
                             fallback_success = True
+                            # Afficher le succès maintenant que c'est terminé
+                            sys.stdout.write(
+                                f"\r✅ [S{display_season} E{episode_counter}/{total_episodes_in_season}] "
+                                f"Téléchargement terminé !\n"
+                            )
+                            sys.stdout.flush()
                             break
 
-                        # Nettoyage du fichier partiel
+                        # Supprimer un fichier vide éventuel
                         if os.path.exists(filename) and os.path.getsize(filename) == 0:
                             os.remove(filename)
-
-                        print(f"⚠️ Échec lecteur {fallback_index + 1} "
-                              f"pour E{episode_counter}, essai du lecteur suivant...")
 
                 if not fallback_success:
                     sys.stdout.write("\r")
                     sys.stdout.flush()
-                    print(f"⚠️  [S{display_season} E{episode_counter}/"
-                          f"{total_episodes_in_season}] Aucun lecteur disponible — épisode ignoré.")
+                    print(
+                        f"⚠️  [S{display_season} E{episode_counter}/{total_episodes_in_season}] "
+                        f"Aucun lecteur disponible — épisode ignoré."
+                    )
 
             episode_counter += 1
             if only_episode:
