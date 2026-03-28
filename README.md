@@ -1,7 +1,7 @@
 <div align="center">
 
 ```
- ██████╗ ██████╗       █████╗██╗  ██╗ █████╗ ███╗   ██╗
+ ██████╗ ██████╗       ██████╗██╗  ██╗ █████╗ ███╗   ██╗
 ██╔════╝██╔═══██╗    ██╔════╝██║  ██║██╔══██╗████╗  ██║
 ██║     ██║   ██║    ██║     ███████║███████║██╔██╗ ██║
 ██║     ██║   ██║    ██║     ██╔══██║██╔══██║██║╚██╗██║
@@ -151,6 +151,71 @@ Co-Chan teste Sibnet, Vidmoly et Sendvid dans l'ordre, puis choisit automatiquem
 
 Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La disponibilité dépend des hébergeurs tiers, sur lesquels nous n'avons aucun contrôle.
 </details>
+
+---
+
+## 🎬 Scène de ménage — L'histoire derrière Co-Chan
+
+> *Quelque part dans un serveur Discord à 2h du matin...*
+
+---
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🌸  CO-CHAN — BEHIND THE SCENES                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *pose son café, l'air nostalgique*
+
+> « Franchement... l'ancien script avait quelque chose. C'était brut,
+> pas de fioriture. Tu lançais, ça téléchargeait. BOOM. C'est tout.
+> Moins beau, mais honnête. »
+
+---
+
+**[@Colmax06](https://github.com/Colmax06)** — *se retourne lentement depuis son écran*
+
+> « Honnête ? Il crashait sur un épisode sur deux et le menu
+> ressemblait à un virus des années 2000. »
+
+---
+
+**[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *se lève brusquement*
+
+> « C'est ce qu'on appelle du **caractère**. Le nouveau il est joli,
+> il brille, il a des animations... mais est-ce qu'il a une *âme* ? »
+
+---
+
+**[@Colmax06](https://github.com/Colmax06)** — *soupir profond, ferme son IDE*
+
+> « Il a une âme. Il a aussi une sélection automatique de serveur,
+> la reprise de téléchargement, et il ne t'envoie pas un traceback
+> Python en pleine face à chaque fois que Sibnet répond pas. »
+
+---
+
+**[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *moment de silence... regarde par la fenêtre*
+
+> « ... T'as pas tort pour Sibnet. »
+
+---
+
+**[@Colmax06](https://github.com/Colmax06)** — *sourire en coin*
+
+> « Je sais. »
+
+---
+
+```
+  [ Fin de la scène ]
+  [ Les deux sont quand même restés coder jusqu'à 4h du mat ]
+```
+
+> *Ce README existe grâce à cette dispute.*
+> *L'ancien script existe toujours dans un coin du dépôt.*
+> *On ne le dit à personne.*
 
 ---
 
