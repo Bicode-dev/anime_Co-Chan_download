@@ -157,7 +157,7 @@ Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La
 ## 🎬 Scène de ménage — L'histoire derrière Co-Chan
 
 > *Quelque part dans un serveur Discord à 2h du matin...*
-> *Il avait tout codé seul. Puis un jour, quelqu'un a débarqué avec des idées.*
+> *Il avait tout codé seul. Puis un jour, quelqu'un a tout rework. Et maintenant, il veut récupérer ce qui lui appartient.*
 
 ---
 
@@ -169,53 +169,55 @@ Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La
 
 <img src="https://avatars.githubusercontent.com/u/66554006?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@lesjeuxmathis](https://github.com/lesjeuxmathis)** *(créateur — pose son café, l'air nostalgique)*
 
-> « J'ai créé ce script from scratch. Seul. La nuit. Avec de la
-> motivation et trop de café. L'ancien marchait très bien. »
+> « J'ai créé Co-Chan from scratch. Seul. L'ancien script c'était le mien,
+> dans ma tête, dans mes mains. Simple, direct, brutal — mais il marchait. »
 
 ---
 
-<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** *(débarqué plus tard — se retourne depuis son écran)*
+<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** *(contributeur — se retourne depuis son écran)*
 
-> « Il crashait sur un épisode sur deux et le menu ressemblait
-> à un virus des années 2000. »
-
----
-
-<img src="https://avatars.githubusercontent.com/u/66554006?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *se lève brusquement*
-
-> « C'est ce qu'on appelle du **caractère**. Le nouveau il est joli,
-> il brille, il a des animations... mais est-ce qu'il a une *âme* ?
-> MON âme était dans l'ancien. »
+> « Tu m'as laissé le rework complet. J'ai tout refactorisé, structuré,
+> rendu propre. T'as continué de patcher par-dessus après. »
 
 ---
 
-<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** — *soupir profond, ferme son IDE*
+<img src="https://avatars.githubusercontent.com/u/66554006?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *acquiesce lentement*
 
-> « Ton âme elle se prenait des tracebacks Python en pleine face
-> à chaque fois que Sibnet répondait pas. »
-
----
-
-<img src="https://avatars.githubusercontent.com/u/66554006?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *moment de silence... regarde par la fenêtre*
-
-> « ... T'as pas tort pour Sibnet. »
+> « Ouais. Et j'ai continué à maintenir le nouveau, les patches,
+> les corrections... Mais l'ancien script, lui, il dort quelque part.
+> Et cette fois je veux le ressortir. **Seul. Avec la main totale dessus.** »
 
 ---
 
-<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** — *sourire en coin*
+<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** — *lève un sourcil*
 
-> « Je sais. C'est pour ça que t'as accepté mon PR. »
+> « Donc t'aurais deux versions en parallèle ? »
+
+---
+
+<img src="https://avatars.githubusercontent.com/u/66554006?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *sourire*
+
+> « Exactement. Le nouveau pour les gens qui veulent du propre.
+> L'ancien pour ceux qui veulent l'original — **tel que je l'ai voulu dès le début.** »
+
+---
+
+<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** — *pause... hoche la tête*
+
+> « Honnêtement ? C'est pas con. »
 
 ---
 
 ```
   [ Fin de la scène ]
-  [ Les deux sont quand même restés coder jusqu'à 4h du mat ]
+  [ L'old script va bientôt ressortir. Cette fois, sous le contrôle total de son créateur. ]
 ```
 
-> *Co-Chan a été créé par [@lesjeuxmathis](https://github.com/lesjeuxmathis).*
-> *[@Colmax06](https://github.com/Colmax06) est arrivé après — et a quand même eu le dernier mot.*
-> *L'ancien script existe toujours dans un coin du dépôt. On ne le dit à personne.*
+> 📜 **Histoire du projet :**
+> Co-Chan a été **créé** par [@lesjeuxmathis](https://github.com/lesjeuxmathis).
+> Le code a été **reworké** par [@Colmax06](https://github.com/Colmax06).
+> Les **patches** du nouveau code ont été assurés par [@lesjeuxmathis](https://github.com/lesjeuxmathis).
+> L'**old script** revient bientôt — cette fois entre les mains de son auteur original.
 
 ---
 
