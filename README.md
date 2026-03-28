@@ -157,6 +157,7 @@ Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La
 ## 🎬 Scène de ménage — L'histoire derrière Co-Chan
 
 > *Quelque part dans un serveur Discord à 2h du matin...*
+> *Il avait tout codé seul. Puis un jour, quelqu'un a débarqué avec des idées.*
 
 ---
 
@@ -166,45 +167,44 @@ Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *pose son café, l'air nostalgique*
+<img src="https://avatars.githubusercontent.com/u/66554006?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@lesjeuxmathis](https://github.com/lesjeuxmathis)** *(créateur — pose son café, l'air nostalgique)*
 
-> « Franchement... l'ancien script avait quelque chose. C'était brut,
-> pas de fioriture. Tu lançais, ça téléchargeait. BOOM. C'est tout.
-> Moins beau, mais honnête. »
-
----
-
-**[@Colmax06](https://github.com/Colmax06)** — *se retourne lentement depuis son écran*
-
-> « Honnête ? Il crashait sur un épisode sur deux et le menu
-> ressemblait à un virus des années 2000. »
+> « J'ai créé ce script from scratch. Seul. La nuit. Avec de la
+> motivation et trop de café. L'ancien marchait très bien. »
 
 ---
 
-**[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *se lève brusquement*
+<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** *(débarqué plus tard — se retourne depuis son écran)*
+
+> « Il crashait sur un épisode sur deux et le menu ressemblait
+> à un virus des années 2000. »
+
+---
+
+<img src="https://avatars.githubusercontent.com/u/66554006?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *se lève brusquement*
 
 > « C'est ce qu'on appelle du **caractère**. Le nouveau il est joli,
-> il brille, il a des animations... mais est-ce qu'il a une *âme* ? »
+> il brille, il a des animations... mais est-ce qu'il a une *âme* ?
+> MON âme était dans l'ancien. »
 
 ---
 
-**[@Colmax06](https://github.com/Colmax06)** — *soupir profond, ferme son IDE*
+<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** — *soupir profond, ferme son IDE*
 
-> « Il a une âme. Il a aussi une sélection automatique de serveur,
-> la reprise de téléchargement, et il ne t'envoie pas un traceback
-> Python en pleine face à chaque fois que Sibnet répond pas. »
+> « Ton âme elle se prenait des tracebacks Python en pleine face
+> à chaque fois que Sibnet répondait pas. »
 
 ---
 
-**[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *moment de silence... regarde par la fenêtre*
+<img src="https://avatars.githubusercontent.com/u/66554006?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@lesjeuxmathis](https://github.com/lesjeuxmathis)** — *moment de silence... regarde par la fenêtre*
 
 > « ... T'as pas tort pour Sibnet. »
 
 ---
 
-**[@Colmax06](https://github.com/Colmax06)** — *sourire en coin*
+<img src="https://avatars.githubusercontent.com/u/140495864?v=4" width="40" style="border-radius:50%;vertical-align:middle;"> **[@Colmax06](https://github.com/Colmax06)** — *sourire en coin*
 
-> « Je sais. »
+> « Je sais. C'est pour ça que t'as accepté mon PR. »
 
 ---
 
@@ -213,9 +213,9 @@ Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La
   [ Les deux sont quand même restés coder jusqu'à 4h du mat ]
 ```
 
-> *Ce README existe grâce à cette dispute.*
-> *L'ancien script existe toujours dans un coin du dépôt.*
-> *On ne le dit à personne.*
+> *Co-Chan a été créé par [@lesjeuxmathis](https://github.com/lesjeuxmathis).*
+> *[@Colmax06](https://github.com/Colmax06) est arrivé après — et a quand même eu le dernier mot.*
+> *L'ancien script existe toujours dans un coin du dépôt. On ne le dit à personne.*
 
 ---
 
