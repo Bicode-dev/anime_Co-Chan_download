@@ -180,7 +180,7 @@ Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La
 
 > « Je dis pas que c'était nul hein. Je dis juste que quand t'as
 > demandé si je pouvais jeter un œil... j'ai vu des trucs qui pouvaient
-> être mieux. Alors j'ai tout rework. Vraiment tout. »
+> être mieux. Alors j'ai rework quelques trucs. »
 
 ---
 
