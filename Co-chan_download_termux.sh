@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════════
-#   CO-INSTALL  v4.0  —  Installateur CO-TEAM pour Termux
+#   CO-INSTALL  v4.1  —  Installateur CO-TEAM pour Termux
 #   Menu dense avec statut en temps réel  •  Actions par script  •  Thème/heure
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -32,6 +32,7 @@ INFO="${C2}›${RESET}"; ARR="${C1}▶${RESET}"
 # ── URLs ──────────────────────────────────────────────────────────────────────
 URL_COMENU="https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Co-Menu.py"
 URL_COCHAN="https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Co-chan.py"
+URL_COCHAN_OLD="https://raw.githubusercontent.com/Bicode-dev/anime_Co-Chan_download/refs/heads/main/Old_script.py"
 URL_COTUBE="https://raw.githubusercontent.com/Bicode-dev/Co-tube/main/Co-tube.py"
 
 PY_DIR="$HOME/.local/share/CoTEAM/Co-Menu"
@@ -39,6 +40,10 @@ COMENU_PATH="$HOME/Co-Menu.py"
 COCHAN_PATH="$PY_DIR/Co-chan.py"
 COTUBE_PATH="$PY_DIR/Co-tube.py"
 COFLIX_PATH="$PY_DIR/Co-flix.py"
+COCHAN_VERSION_FILE="$PY_DIR/.cochan_version"
+
+# Variable globale pour la version choisie
+CHOSEN_COCHAN_URL=""
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 clr() { clear; }
@@ -164,8 +169,81 @@ fetch_script() {
     fi
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  BANNIÈRE
+# ── Version Co-chan installée ─────────────────────────────────────────────────
+get_cochan_url() {
+    if [ -f "$COCHAN_VERSION_FILE" ]; then
+        local v; v=$(cat "$COCHAN_VERSION_FILE")
+        [ "$v" = "old" ] && echo "$URL_COCHAN_OLD" && return
+    fi
+    echo "$URL_COCHAN"
+}
+
+get_cochan_ver_label() {
+    if [ -f "$COCHAN_VERSION_FILE" ]; then
+        local v; v=$(cat "$COCHAN_VERSION_FILE")
+        [ "$v" = "old" ] && echo "Old_script" && return
+    fi
+    echo "Nouvelle"
+}
+
+# ── Choix de version Co-chan ──────────────────────────────────────────────────
+choose_cochan_version() {
+    local current_ver=""
+    [ -f "$COCHAN_VERSION_FILE" ] && current_ver=$(cat "$COCHAN_VERSION_FILE")
+
+    nl
+    sec_hdr "${C2}" "VERSION DE CO-CHAN"
+    nl
+    if [ -n "$current_ver" ]; then
+        if [ "$current_ver" = "old" ]; then
+            line_info "Version actuelle : ${BOLD}Old_script.py${RESET} ${DIM}(ancienne)${RESET}"
+        else
+            line_info "Version actuelle : ${BOLD}Co-chan.py${RESET} ${DIM}(nouvelle)${RESET}"
+        fi
+        nl
+    fi
+    echo -e "  ${C1}${BOLD} [1] ${RESET} Co-chan.py     ${DIM}→ version nouvelle (recommandée)${RESET}"
+    echo -e "  ${C1}${BOLD} [2] ${RESET} Old_script.py  ${DIM}→ version ancienne${RESET}"
+    nl
+    if [ -n "$current_ver" ]; then
+        printf "  ${C1}${BOLD}›› ${RESET}Choix ${DIM}[Entrée = garder la version actuelle]${RESET} : "
+    else
+        printf "  ${C1}${BOLD}›› ${RESET}Choix ${DIM}[1 ou 2]${RESET} : "
+    fi
+    read -r ver_choice
+
+    mkdir -p "$(dirname "$COCHAN_VERSION_FILE")"
+    case "$ver_choice" in
+        1)
+            echo "new" > "$COCHAN_VERSION_FILE"
+            CHOSEN_COCHAN_URL="$URL_COCHAN"
+            line_info "Version ${BOLD}Co-chan.py${RESET} ${DIM}(nouvelle)${RESET} sélectionnée"
+            ;;
+        2)
+            echo "old" > "$COCHAN_VERSION_FILE"
+            CHOSEN_COCHAN_URL="$URL_COCHAN_OLD"
+            line_info "Version ${BOLD}Old_script.py${RESET} ${DIM}(ancienne)${RESET} sélectionnée"
+            ;;
+        "")
+            if [ "$current_ver" = "old" ]; then
+                CHOSEN_COCHAN_URL="$URL_COCHAN_OLD"
+                line_info "Version ${BOLD}Old_script.py${RESET} ${DIM}conservée${RESET}"
+            else
+                echo "new" > "$COCHAN_VERSION_FILE"
+                CHOSEN_COCHAN_URL="$URL_COCHAN"
+                line_info "Version ${BOLD}Co-chan.py${RESET} ${DIM}(nouvelle) conservée${RESET}"
+            fi
+            ;;
+        *)
+            line_warn "Choix invalide — version nouvelle utilisée par défaut"
+            echo "new" > "$COCHAN_VERSION_FILE"
+            CHOSEN_COCHAN_URL="$URL_COCHAN"
+            ;;
+    esac
+    nl
+}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 banner() {
     echo -e "${C1}"
@@ -189,7 +267,8 @@ print_menu() {
     # ── Section ÉTAT DES FICHIERS ─────────────────────────────────────────────
     sec_hdr "${C1}" "ÉTAT DES FICHIERS"
     file_status_line "$COMENU_PATH" "$URL_COMENU" "Co-Menu.py"
-    file_status_line "$COCHAN_PATH" "$URL_COCHAN" "Co-chan.py"
+    file_status_line "$COCHAN_PATH" "$(get_cochan_url)" "Co-chan.py"
+    echo -e "  ${DIM}           version : $(get_cochan_ver_label)${RESET}"
     file_status_line "$COTUBE_PATH" "$URL_COTUBE" "Co-tube.py"
     if [ -f "$COFLIX_PATH" ]; then
         local lsize=$(wc -c < "$COFLIX_PATH" | tr -d ' ')
@@ -385,7 +464,7 @@ uninstall_all() {
               "$HOME/.shortcuts/CO-TUBE-YouTube.sh" "$HOME/.shortcuts/CO-UPDATE.sh" \
               "$HOME/.shortcuts/RM-ANIME.sh"
         sed -i '/# ── CO-TEAM START/,/# ── CO-TEAM END/d' "$HOME/.bashrc" 2>/dev/null
-        nl; line_ok "Désinstallation terminée"
+        nl; line_ok "Désinstallation terminée (version Co-chan supprimée)"
     else
         line_info "Annulé"
     fi
@@ -404,7 +483,8 @@ full_install() {
 
     section "Scripts"
     fetch_script "$URL_COMENU" "$COMENU_PATH" "Co-Menu.py"
-    fetch_script "$URL_COCHAN" "$COCHAN_PATH" "Co-chan.py"
+    choose_cochan_version
+    fetch_script "$CHOSEN_COCHAN_URL" "$COCHAN_PATH" "Co-chan.py"
     fetch_script "$URL_COTUBE" "$COTUBE_PATH" "Co-tube.py"
     nl; line_warn "Co-flix.py — pas d'URL publique, màj manuelle"
 
@@ -422,7 +502,8 @@ update_all_scripts() {
     clr; banner
     section "Mise à jour de tous les scripts"
     fetch_script "$URL_COMENU" "$COMENU_PATH" "Co-Menu.py"
-    fetch_script "$URL_COCHAN" "$COCHAN_PATH" "Co-chan.py"
+    choose_cochan_version
+    fetch_script "$CHOSEN_COCHAN_URL" "$COCHAN_PATH" "Co-chan.py"
     fetch_script "$URL_COTUBE" "$COTUBE_PATH" "Co-tube.py"
     nl; line_warn "Co-flix.py — màj manuelle uniquement"
     nl; pause
@@ -445,7 +526,7 @@ while true; do
 
     case "$choice" in
         1) clr; banner; fetch_script "$URL_COMENU" "$COMENU_PATH" "Co-Menu.py";  nl; pause ;;
-        2) clr; banner; fetch_script "$URL_COCHAN" "$COCHAN_PATH" "Co-chan.py";   nl; pause ;;
+        2) clr; banner; choose_cochan_version; fetch_script "$CHOSEN_COCHAN_URL" "$COCHAN_PATH" "Co-chan.py"; nl; pause ;;
         3) clr; banner; fetch_script "$URL_COTUBE" "$COTUBE_PATH" "Co-tube.py";  nl; pause ;;
         4) full_install ;;
         5) update_all_scripts ;;
