@@ -48,11 +48,6 @@ git clone https://github.com/Bicode-dev/anime_Co-Chan_download
 python Co-chan.py
 ```
 
-**Option 3 — Setup automatique**
-```bash
-Setup.bat
-```
-
 ### 📱 Android (Termux)
 
 ```bash
@@ -178,7 +173,7 @@ Toute utilisation commerciale, modification ou redistribution est **strictement 
 
 <div align="center">
 
-**Co-Chan** · Par [Bicode_DEV](https://github.com/Bicode-dev) · 2026
+<img src="https://github.com/user-attachments/assets/1aa3b128-1344-4a8d-8959-ccef45922c1a" width="20"> **Co-Chan** · Par [Bicode_DEV](https://github.com/Bicode-dev) · 2026
 
 [🌐 Site Web](https://bicode-dev.github.io/Co-Chan-Anime-Downloader-web/) · [📦 Releases](https://github.com/Bicode-dev/anime_Co-Chan_download/releases) · [💬 Discord](https://discord.gg/cG6qSTSeUA)
 
