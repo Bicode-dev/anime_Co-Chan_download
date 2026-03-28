@@ -431,10 +431,8 @@ def get_actual_total_episodes_for_season(url_list):
     """Récupère le nombre réel d'épisodes qui seront téléchargés pour une saison donnée"""
     episode_counter = 0
     for url in url_list:
-        eps_arrays = extract_video_links(url)
-        if eps_arrays:
-            # Prendre le premier eps array (le meilleur)
-            episode_counter += len(eps_arrays[0])
+        links = extract_video_links(url)
+        episode_counter += len(links)
     return episode_counter
 
 def ask_for_starting_point(folder_name, seasons):
@@ -601,7 +599,7 @@ FolderType=Generic
         pass
 
 def get_vidmoly_m3u8(video_id):
-    """Extrait l'URL m3u8 depuis vidmoly (5 tentatives silencieuses)"""
+    """Extrait l'URL m3u8 depuis vidmoly via le domaine .biz (sans navigateur)"""
     session = requests.Session()
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -614,23 +612,15 @@ def get_vidmoly_m3u8(video_id):
         "Connection": "keep-alive",
         "Accept-Encoding": "identity",
     }
-    
-    # 5 tentatives silencieuses sans rien afficher
-    for attempt in range(5):
-        try:
-            url = f"https://vidmoly.biz/embed-{video_id}.html"
-            resp = session.get(url, headers=headers, timeout=15)
-            text = resp.content.decode("utf-8", errors="ignore")
-            m3u8 = re.search(r'https?://[^\s"\']+\.m3u8[^\s"\']*', text)
-            if m3u8:
-                return m3u8.group(0)
-        except Exception:
-            pass  # Silent fail, on retente
-        
-        if attempt < 4:  # Pause avant la prochaine tentative (sauf après la dernière)
-            time.sleep(1)
-    
-    # Après 5 échecs, retourne None (géré par le système de fallback)
+    try:
+        url = f"https://vidmoly.biz/embed-{video_id}.html"
+        resp = session.get(url, headers=headers, timeout=15)
+        text = resp.content.decode("utf-8", errors="ignore")
+        m3u8 = re.search(r'https?://[^\s"\']+\.m3u8[^\s"\']*', text)
+        if m3u8:
+            return m3u8.group(0)
+    except Exception as e:
+        print(f"⚠️ Erreur vidmoly m3u8 : {e}")
     return None
 
 def classify_link(url):
@@ -686,11 +676,11 @@ def parse_eps_arrays(js_text):
 
 def extract_video_links(url):
     """
-    Récupère TOUS les epsX depuis le JS anime-sama pour permettre les fallbacks.
-    Retourne une liste de listes de tuples (link_type, link_value).
-    Le premier élément est le meilleur lecteur, les suivants sont les fallbacks.
+    Récupère le meilleur epsX depuis le JS anime-sama.
+    Choix : 1) plus de liens total, 2) plus de liens compatibles si égalité.
+    Retourne une liste de tuples (link_type, link_value).
     """
-    response = requests.get(url, timeout=10)
+    response = requests.get(url)
     if response.status_code != 200:
         return []
 
@@ -698,20 +688,21 @@ def extract_video_links(url):
     if not eps_list:
         return []
 
-    # Retourne tous les eps arrays (pas juste le meilleur)
-    return [eps["links"] for eps in eps_list]
+    best = eps_list[0]
+    return best["links"]
 
 def download_video(link_type, link_value, filename, season, episode, max_episode):
     if not check_disk_space():
         print(f"⛔ Espace disque insuffisant. Arrêt du téléchargement pour [S{season} E{episode}/{max_episode}].")
-        return False
+        return
 
     final_url = None
 
     if link_type == "vidmoly":
         m3u8 = get_vidmoly_m3u8(link_value)
         if not m3u8:
-            return False  # Échec silencieux, sera géré par le fallback
+            print(f"⛔ Impossible d'extraire le m3u8 pour vidmoly ID {link_value}")
+            return
         final_url = m3u8
     else:
         final_url = link_value
@@ -759,12 +750,12 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([final_url])
-        return True
 
     except Exception as e:
         sys.stdout.write("\r")
         sys.stdout.flush()
-        return False
+        print(f"⛔ Erreur lors du téléchargement: {e}")
+        return
 
 def custom_sort_key(x):
     if isinstance(x, str) and x.isdigit():
@@ -872,19 +863,13 @@ def main():
     start_season, start_episode = ask_for_starting_point(folder_name, seasons)
 
     for display_season, url_list in seasons:
-        # Extraire TOUS les eps arrays pour permettre les fallbacks
-        all_eps_arrays = []
+        total_episodes_in_season = 0
+        all_links = []
+
         for url in url_list:
-            eps_arrays = extract_video_links(url)
-            if eps_arrays:
-                all_eps_arrays.extend(eps_arrays)
-        
-        if not all_eps_arrays:
-            continue
-        
-        # Utiliser le premier eps array comme principal
-        current_eps_array_index = 0
-        all_links = all_eps_arrays[current_eps_array_index]
+            links = extract_video_links(url)
+            all_links.extend(links)
+
         total_episodes_in_season = len(all_links)
 
         if total_episodes_in_season == 0:
@@ -902,6 +887,7 @@ def main():
                     print(f"⏭️ Saison {display_season.upper()} ignorée (avant S{start_season})")
                     continue
                 elif current_index == start_index and start_episode > 1:
+                    all_links = all_links[start_episode - 1:]
                     episode_counter = start_episode
                     print(f"➡️ Reprise à S{display_season} E{start_episode}")
             except ValueError:
@@ -909,16 +895,17 @@ def main():
 
         print(f"♾️ Téléchargement de la Saison {display_season.upper()} ({total_episodes_in_season} épisodes)")
 
-        while episode_counter <= total_episodes_in_season:
-            episode_index = episode_counter - 1
-            
-            if episode_index >= len(all_links):
-                break
-                
-            link_type, link_value = all_links[episode_index]
+        for link_type, link_value in all_links:
+            sys.stdout.write("🌐 Chargement")
+            sys.stdout.flush()
+            for _ in range(3):
+                time.sleep(1)
+                sys.stdout.write(".")
+                sys.stdout.flush()
+            sys.stdout.write("\r")
+            sys.stdout.flush()
 
             if link_type == "sibnet" and check_http_403(link_value):
-                episode_counter += 1
                 continue
 
             download_dir = os.path.join(get_download_path(), folder_name)
@@ -928,47 +915,8 @@ def main():
                 get_anime_image(anime_name_capitalized, download_dir, formatted_url_name)
 
             filename = os.path.join(download_dir, f"s{display_season}_e{episode_counter}.mp4")
-            success = download_video(link_type, link_value, filename, display_season, episode_counter, total_episodes_in_season)
-            
-            if not success:
-                # Échec du téléchargement - essayer les autres lecteurs (eps arrays)
-                fallback_success = False
-                
-                for fallback_index in range(len(all_eps_arrays)):
-                    if fallback_index == current_eps_array_index:
-                        continue  # Skip le lecteur actuel
-                    
-                    fallback_links = all_eps_arrays[fallback_index]
-                    
-                    # Vérifier si le fallback a au moins autant d'épisodes
-                    if len(fallback_links) >= episode_counter:
-                        fallback_episode_index = episode_counter - 1
-                        fallback_link_type, fallback_link_value = fallback_links[fallback_episode_index]
-                        
-                        # Réessayer avec ce lecteur alternatif
-                        success = download_video(fallback_link_type, fallback_link_value, filename, 
-                                                display_season, episode_counter, total_episodes_in_season)
-                        
-                        if success:
-                            # Le fallback a marché ! Basculer sur ce lecteur pour les prochains épisodes
-                            current_eps_array_index = fallback_index
-                            all_links = fallback_links
-                            total_episodes_in_season = len(all_links)
-                            fallback_success = True
-                            break
-                
-                if not fallback_success:
-                    # Aucun lecteur n'a fonctionné, afficher un message clair
-                    sys.stdout.write("\r")
-                    sys.stdout.flush()
-                    print(f"❌ [S{display_season} E{episode_counter}/{total_episodes_in_season}] Téléchargement échoué ! Passage à l'épisode suivant...")
-                    episode_counter += 1
-                else:
-                    # Succès avec le fallback, continuer normalement
-                    episode_counter += 1
-            else:
-                # Téléchargement réussi
-                episode_counter += 1
+            download_video(link_type, link_value, filename, display_season, episode_counter, total_episodes_in_season)
+            episode_counter += 1
 
 if __name__ == "__main__":
     main()
