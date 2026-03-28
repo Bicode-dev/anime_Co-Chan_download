@@ -180,7 +180,7 @@ Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La
 
 > « Je dis pas que c'était nul hein. Je dis juste que quand t'as
 > demandé si je pouvais jeter un œil... j'ai vu des trucs qui pouvaient
-> être mieux. Alors j'ai rework quelques trucs. »
+> être mieux. Alors j'ai rework quelques trucs comme l'interface. »
 
 ---
 
@@ -274,7 +274,7 @@ Si aucun serveur ne dispose de l'épisode, Co-Chan vous l'indique clairement. La
 
 > 📜 **Histoire du projet :**
 > Co-Chan a été **créé** par [@lesjeuxmathis](https://github.com/lesjeuxmathis).
-> Le code a été **entièrement reworké** par [@Colmax06](https://github.com/Colmax06).
+> Le code a été un peu reworké par [@Colmax06](https://github.com/Colmax06).
 > Les **patches et la maintenance** du nouveau code ont été assurés par [@lesjeuxmathis](https://github.com/lesjeuxmathis).
 > L'**old script** revient bientôt — cette fois entre les mains de son auteur, avec la main totale dessus.
 
