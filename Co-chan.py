@@ -850,6 +850,10 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
 
     anime_folder_name = os.path.basename(os.path.dirname(filename))
     is_termux = platform.system() == "Linux" and "ANDROID_STORAGE" in os.environ
+    is_ios    = is_ios_device()
+    # Téléchargement parallèle uniquement sur desktop (Windows / Mac / Linux bureau)
+    is_desktop = not is_termux and not is_ios
+
     if is_termux:
         script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
         temp_dir = os.path.join(script_dir, "temp", anime_folder_name)
@@ -885,6 +889,12 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
         "retries":             15,
         "paths":               {"temp": temp_dir},
     }
+
+    # ── Fragments simultanés (desktop uniquement) ────────────────────────────
+    # Sur Windows / Mac / Linux bureau : 4 fragments en parallèle (entre 3 et 6).
+    # Désactivé sur Android (Termux) et iOS pour éviter les crashs mémoire.
+    if is_desktop:
+        ydl_opts["concurrent_fragment_downloads"] = 4
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
