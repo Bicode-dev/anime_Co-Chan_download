@@ -50,6 +50,33 @@ class MyLogger:
         print(msg)
 
 
+# ── Logger silencieux (utilisé par le GUI) ────────────────────────────────────
+class _SilentLogger:
+    def debug(self, msg):   pass
+    def warning(self, msg): pass
+    def error(self, msg):   pass
+
+
+# ── Config persistante (utilisée par le GUI) ──────────────────────────────────
+_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cochan_config.json")
+
+def _load_config():
+    try:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_config(updates: dict):
+    cfg = _load_config()
+    cfg.update(updates)
+    try:
+        with open(_CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
 # ── Utilitaires plateforme (inchangés) ────────────────────────────────────────
 def is_ios_device():
     """Détecte si on est sur un appareil iOS (iPhone/iPad)"""
@@ -74,7 +101,8 @@ def set_title(title_text):
         os.system(f'echo -e "\033]0;{title_text}\007"')
 
 
-set_title("Co-Chan")
+if __name__ == "__main__":
+    set_title("Co-Chan")
 
 
 # ── Priorité processus ────────────────────────────────────────────────────────
@@ -163,18 +191,10 @@ def get_active_domain():
                     print(f"✅ Serveur actif trouvé : {redirected_domain}")
                     return full_url
 
-        print("❌")
-        print("❌ Impossible de trouver le serveur actif")
-        print("\n⏰ Fermeture automatique dans 10 secondes...")
-        time.sleep(10)
-        exit(1)
+        raise Exception("Impossible de trouver le serveur actif anime-sama.")
 
-    except Exception as e:
-        print("❌")
-        print(f"❌ Erreur lors de la récupération du serveur : {e}")
-        print("\n⏰ Fermeture automatique dans 10 secondes...")
-        time.sleep(10)
-        exit(1)
+    except Exception:
+        raise
 
 
 def check_domain_availability():
@@ -249,7 +269,12 @@ def progress_hook(d, season, episode, max_episode):
 
 # ── Chemins (inchangé) ────────────────────────────────────────────────────────
 def get_download_path():
-    """Retourne le chemin de téléchargement selon la plateforme"""
+    """Retourne le chemin de téléchargement selon la plateforme (ou la config GUI)"""
+    # Si une config GUI a été sauvegardée, on l'utilise en priorité
+    cfg = _load_config()
+    if cfg.get("download_dir") and os.path.isdir(cfg["download_dir"]):
+        return cfg["download_dir"]
+
     s = platform.system()
     if s == "Windows":
         return os.path.join(os.getcwd())
@@ -417,23 +442,13 @@ def custom_sort_key(x):
 
 # ── Choix saison Normal/HS (inchangé) ─────────────────────────────────────────
 def resolve_season_choices(season_info):
-    """Si une saison a Normal + HS, on demande à l'utilisateur laquelle il veut"""
+    """Si une saison a Normal + HS, on choisit automatiquement Normal (compatible GUI)."""
     final_seasons = []
     for key, info in sorted(season_info.items(), key=lambda x: custom_sort_key(x[0])):
         if info["type"] == "both":
-            print(f"\nPour la Saison {key}:")
-            print("1. Version Normale")
-            print("2. Version HS")
-            choix = ""
-            while choix not in ["1", "2"]:
-                choix = input("Choisissez 1 ou 2 : ").strip()
-            if choix == "1":
-                chosen_url = info["normal"]
-                display = key
-            else:
-                chosen_url = info["hs"]
-                display = f"{key}hs"
-            print(f"→ {display.upper()} sélectionnée\n")
+            # En mode GUI, on sélectionne automatiquement la version Normale
+            chosen_url = info["normal"]
+            display = key
             urls = [chosen_url]
             if "variants" in info:
                 urls.extend([v[1] for v in sorted(info["variants"])])
@@ -850,10 +865,6 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
 
     anime_folder_name = os.path.basename(os.path.dirname(filename))
     is_termux = platform.system() == "Linux" and "ANDROID_STORAGE" in os.environ
-    is_ios    = is_ios_device()
-    # Téléchargement parallèle uniquement sur desktop (Windows / Mac / Linux bureau)
-    is_desktop = not is_termux and not is_ios
-
     if is_termux:
         script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
         temp_dir = os.path.join(script_dir, "temp", anime_folder_name)
@@ -889,12 +900,6 @@ def download_video(link_type, link_value, filename, season, episode, max_episode
         "retries":             15,
         "paths":               {"temp": temp_dir},
     }
-
-    # ── Fragments simultanés (desktop uniquement) ────────────────────────────
-    # Sur Windows / Mac / Linux bureau : 4 fragments en parallèle (entre 3 et 6).
-    # Désactivé sur Android (Termux) et iOS pour éviter les crashs mémoire.
-    if is_desktop:
-        ydl_opts["concurrent_fragment_downloads"] = 4
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
