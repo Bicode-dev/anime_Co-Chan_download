@@ -74,6 +74,7 @@ python Co-chan.py --help
 
 | Commande | Description |
 |----------|-------------|
+Plus disponible
 | `python Co-chan.py "nom" vf` | Téléchargement en Voix Françaises |
 | `python Co-chan.py "nom" vostfr` | Téléchargement en Sous-titres Français |
 | `python Co-chan.py --help` | Afficher toutes les options disponibles |
