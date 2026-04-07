@@ -588,9 +588,11 @@ InputScreen { align: center middle; }
 #input-hint { color: #454545; text-align: center; padding-top: 1; height: 1; }
 
 ResultScreen { align: center middle; }
-#result-wrap { width: 1fr; max-width: 72; height: auto; max-height: 95vh; border: heavy #3a3a3a; background: #0f0f0f; padding: 1 3; }
-#result-body { height: auto; max-height: 28; overflow-y: auto; padding-bottom: 1; }
-#result-hint { color: #454545; text-align: center; border-top: solid #252525; padding-top: 1; height: 1; }
+#result-wrap { width: 1fr; max-width: 72; height: auto; max-height: 95vh; border: heavy #3a3a3a; background: #0f0f0f; padding: 0 0 1 0; }
+#result-title { background: #0c0c0c; color: #ffffff; text-align: center; padding: 0 2; text-style: bold; border-bottom: solid #252525; height: 1; }
+#result-subtitle { color: #909090; text-align: center; padding: 0 1; text-style: italic; height: 1; border-bottom: solid #1a1a1a; }
+#result-body { height: auto; max-height: 28; overflow-y: auto; padding: 1 3; padding-bottom: 1; }
+#result-hint { color: #454545; text-align: center; border-top: solid #252525; padding-top: 1; height: 1; margin-top: 1; }
 
 SplashScreen { align: center middle; background: #0a0a0a; }
 #splash-wrap { width: 1fr; max-width: 74; height: auto; border: heavy #3a3a3a; background: #0f0f0f; padding: 2 4; align: center middle; }
@@ -697,8 +699,8 @@ class ConsoleUI:
         r = await _push_and_wait(InputScreen(title, prompt_text, subtitle))
         return r or ""
     @staticmethod
-    async def result_screen(lines, pause=True):
-        if _APP: await _push_and_wait(ResultScreen(lines, pause))
+    async def result_screen(lines, pause=True, title="", subtitle=""):
+        if _APP: await _push_and_wait(ResultScreen(lines, pause, title=title, subtitle=subtitle))
     @staticmethod
     async def loading_screen(title, duration=1.5):
         if _APP: await _push_and_wait(LoadingScreen(title, duration))
@@ -832,11 +834,17 @@ class ResultScreen(ModalScreen):
     can_focus = True
     BINDINGS = [Binding("enter","close",show=False), Binding("escape","close",show=False),
                 Binding("space","close",show=False)]
-    def __init__(self, lines, pause=True, timeout=None):
-        super().__init__(); self._lines = lines; self._pause = pause; self._timeout = timeout
+    def __init__(self, lines, pause=True, timeout=None, title="", subtitle=""):
+        super().__init__()
+        self._lines = lines; self._pause = pause; self._timeout = timeout
+        self._title = title; self._subtitle = subtitle
     def compose(self) -> ComposeResult:
         with Vertical(id="result-wrap"):
             yield Static(_BANNER, markup=True, classes="banner")
+            if self._title:
+                yield Static(self._title, id="result-title")
+            if self._subtitle:
+                yield Static(self._subtitle, id="result-subtitle")
             with ScrollableContainer(id="result-body"):
                 for line in self._lines: yield Static(_strip_ansi(line))
             yield Static("↵ / Espace  ·  Continuer" if self._pause else " ", id="result-hint")
@@ -1425,7 +1433,7 @@ async def download_season_all(anime_name, folder_name, season_key, url_list, _ba
             await ConsoleUI.result_screen(["  ⚠   Espace disque insuffisant — arrêt."])
             break
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=False
+            candidates, filename, season_key, ep_num, n_total, pause=True
         )
         if success: ok += 1
         else: err += 1
@@ -1458,7 +1466,7 @@ async def download_n_episodes(anime_name, folder_name, season_key, url_list, n):
         candidates = _best_candidates(all_eps_arrays, ep_num)
         filename = os.path.join(dl_dir, f"s{season_key}_e{ep_num}.mp4")
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=False
+            candidates, filename, season_key, ep_num, n_total, pause=True
         )
         if success: ok += 1
         else: err += 1
@@ -1492,11 +1500,6 @@ async def download_ep_range(anime_name, folder_name, season_key, url_list, _base
         start, end = end, start   # swap silencieux
 
     n_sel = end - start + 1
-    await ConsoleUI.result_screen([
-        f"  📎  Plage sélectionnée : E{start:02d} → E{end:02d}",
-        f"  🔢  {n_sel} épisode{'s' if n_sel > 1 else ''} à télécharger",
-        "  ▶   Démarrage…"], pause=True)
-
     dl_dir = os.path.join(get_download_path(), folder_name)
     os.makedirs(dl_dir, exist_ok=True)
     get_anime_image(anime_name, dl_dir, format_url_name(anime_name))
@@ -1509,7 +1512,7 @@ async def download_ep_range(anime_name, folder_name, season_key, url_list, _base
         candidates = _best_candidates(all_eps_arrays, ep_num)
         filename = os.path.join(dl_dir, f"s{season_key}_e{ep_num}.mp4")
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=False
+            candidates, filename, season_key, ep_num, n_total, pause=True
         )
         if success: ok += 1
         else: err += 1
@@ -1558,18 +1561,12 @@ async def download_multi_range(anime_name, folder_name, seasons, _base_url_path)
     s_from = f"S{start_item[0].upper()}·E{start_item[1]:02d}"
     s_to   = f"S{end_item[0].upper()}·E{end_item[1]:02d}"
 
-    await ConsoleUI.result_screen([
-        "  🌐  Plage multi-saisons sélectionnée",
-        f"  📎  {s_from}  →  {s_to}",
-        f"  🔢  {n_sel} épisode{'s' if n_sel > 1 else ''} à télécharger",
-        "  ▶   Démarrage…"], pause=True)
-
     dl_dir = os.path.join(get_download_path(), folder_name)
     os.makedirs(dl_dir, exist_ok=True)
     get_anime_image(anime_name, dl_dir, format_url_name(anime_name))
 
     ok, err = 0, 0
-    for _, (sk, ep_num) in enumerate(selected, start=1):
+    for _ep_i, (sk, ep_num) in enumerate(selected, start=1):
         if not check_disk_space():
             await ConsoleUI.result_screen(["  ⚠   Espace disque insuffisant — arrêt.",
                                             f"  ✔  Épisodes complétés : {ok}/{n_sel}"])
@@ -1577,7 +1574,7 @@ async def download_multi_range(anime_name, folder_name, seasons, _base_url_path)
         arrs, n_total = season_data.get(sk, ([], 0))
         candidates = _best_candidates(arrs, ep_num)
         filename = os.path.join(dl_dir, f"s{sk}_e{ep_num}.mp4")
-        success = await _run_download(candidates, filename, sk, ep_num, n_total, pause=False)
+        success = await _run_download(candidates, filename, sk, ep_num, n_total, pause=True)
         if success: ok += 1
         else: err += 1
 
