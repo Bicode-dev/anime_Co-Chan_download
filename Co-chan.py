@@ -252,20 +252,24 @@ def check_anime_exists(base_url, name):
                 continue
     return False
 
-def check_available_languages(base_url, name):
+def check_available_languages(base_url, name, progress_cb=None, status_cb=None):
+    langs = ["vf", "va", "vkr", "vcn", "vqc", "vf1", "vf2", "vf3", "vf4", "vf5"]
     available = []
-    for lang in ["vf", "va", "vkr", "vcn", "vqc", "vf1", "vf2", "vf3", "vf4", "vf5"]:
+    for i, lang in enumerate(langs):
+        if progress_cb: progress_cb(int(i / len(langs) * 95))
+        if status_cb: status_cb(f"Langue {lang.upper()}…")
         for kind in ["saison1", "film"]:
             try:
                 r = requests.get(f"{base_url}{name}/{kind}/{lang}/episodes.js", timeout=5)
                 if r.status_code == 200 and r.text.strip():
                     available.append(lang)
+                    if status_cb: status_cb(f"Langue {lang.upper()}  ✔")
                     break
             except Exception:
                 continue
     return available
 
-def check_seasons(base_url, name, language):
+def check_seasons(base_url, name, language, progress_cb=None, status_cb=None):
     season_info = {}
     season = 1
     not_found = 0
@@ -273,6 +277,9 @@ def check_seasons(base_url, name, language):
         has_n = has_hs = False
         n_url = f"{base_url}{name}/saison{season}/{language}/episodes.js"
         hs_url = f"{base_url}{name}/saison{season}hs/{language}/episodes.js"
+        if status_cb: status_cb(f"Saison {season}…")
+        # Progress estimée : on suppose rarement plus de 20 saisons
+        if progress_cb: progress_cb(min(int((season - 1) / max(season + 2, 5) * 90), 90))
         try:
             r = requests.get(n_url, timeout=10)
             has_n = r.status_code == 200 and r.text.strip()
@@ -285,6 +292,8 @@ def check_seasons(base_url, name, language):
             pass
         if has_n or has_hs:
             not_found = 0
+            label = f"Saison {season}" + (" + HS" if has_n and has_hs else "HS" if has_hs else "")
+            if status_cb: status_cb(f"{label}  ✔")
             if has_n and has_hs:
                 season_info[f"{season}"] = {
                     "type": "both", "normal": n_url,
@@ -308,6 +317,7 @@ def check_seasons(base_url, name, language):
                         if r.status_code == 200 and r.text.strip():
                             if base_key in season_info:
                                 season_info[base_key].setdefault("variants", []).append((i, v_url))
+                                if status_cb: status_cb(f"Saison {season} · variante {i}  ✔")
                             vfound = 0
                         else:
                             vfound += 1
@@ -317,12 +327,14 @@ def check_seasons(base_url, name, language):
         else:
             not_found += 1
         season += 1
-    for special, _ in [("film", "Film"), ("oav", "OAV")]:
+    for special, label in [("film", "Film"), ("oav", "OAV")]:
+        if status_cb: status_cb(f"{label}…")
         url = f"{base_url}{name}/{special}/{language}/episodes.js"
         try:
             r = requests.get(url, timeout=10)
             if r.status_code == 200 and r.text.strip():
                 season_info[special] = {"type": special, "url": url, "variants": []}
+                if status_cb: status_cb(f"{label}  ✔")
         except Exception:
             continue
     return season_info
@@ -604,6 +616,7 @@ SplashScreen { align: center middle; background: #0a0a0a; }
 LoadingScreen, WorkingScreen { align: center middle; }
 #loading-wrap { width: 1fr; max-width: 68; height: auto; border: heavy #3a3a3a; background: #0f0f0f; padding: 2 4; align: center middle; }
 #loading-title { color: #ffffff; text-style: bold; text-align: center; padding-bottom: 1; }
+#loading-status { color: #606060; text-align: center; text-style: italic; height: 1; padding-bottom: 1; }
 #loading-spinner { color: #d0d0d0; text-align: center; text-style: bold; height: 1; margin-top: 1; }
 
 ProgressBar { width: 70%; margin: 1 0; }
@@ -947,37 +960,66 @@ class LoadingScreen(ModalScreen):
 
 
 class WorkingScreen(ModalScreen):
-    """Loading screen qui reste affiché PENDANT que fn(*args) tourne en thread."""
+    """Loading screen qui reste affiche PENDANT que fn(*args) tourne en thread.
+    Injecte automatiquement progress_cb(pct) et status_cb(msg) si la fonction les accepte.
+    """
     _SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
     def __init__(self, title, fn, *args, **kwargs):
         super().__init__()
         self._title = title; self._fn = fn; self._args = args; self._kwargs = kwargs
-        self._spin_i = 0; self._pct = 0
+        self._spin_i = 0; self._pct = 0; self._real_progress = False
+
     def _ui(self, fn, *a):
         if _APP:
             try: _APP.call_from_thread(fn, *a)
             except Exception: pass
+
+    def _progress_cb(self, pct):
+        self._real_progress = True
+        def _do():
+            try: self.query_one("#loading-bar", ProgressBar).update(progress=min(int(pct), 100))
+            except Exception: pass
+        self._ui(_do)
+
+    def _status_cb(self, msg):
+        def _do():
+            try: self.query_one("#loading-status", Static).update(msg)
+            except Exception: pass
+        self._ui(_do)
+
     def compose(self) -> ComposeResult:
         with Vertical(id="loading-wrap"):
             yield Static(_BANNER, markup=True, classes="banner")
             yield Static(self._title, id="loading-title")
+            yield Static(" ", id="loading-status")
             with Center():
                 yield ProgressBar(total=100, show_eta=False, id="loading-bar")
             yield Static(f"  {self._SPIN[0]}", id="loading-spinner")
+
     def on_mount(self):
         self._spin_int = self.set_interval(0.08, self._spin_tick)
         self._pulse_int = self.set_interval(0.15, self._pulse_tick)
         self.run_worker(self._run, thread=True, exclusive=True)
+
     def _spin_tick(self):
         self._spin_i = (self._spin_i + 1) % len(self._SPIN)
         try: self.query_one("#loading-spinner", Static).update(f"  {self._SPIN[self._spin_i]}")
         except Exception: pass
+
     def _pulse_tick(self):
+        if self._real_progress: return
         self._pct = (self._pct + 3) % 101
         try: self.query_one("#loading-bar", ProgressBar).update(progress=self._pct)
         except Exception: pass
+
     def _run(self):
-        result = self._fn(*self._args, **self._kwargs)
+        import inspect
+        sig = inspect.signature(self._fn)
+        kw = dict(self._kwargs)
+        if "progress_cb" in sig.parameters: kw["progress_cb"] = self._progress_cb
+        if "status_cb"   in sig.parameters: kw["status_cb"]   = self._status_cb
+        result = self._fn(*self._args, **kw)
         def _finish():
             try:
                 self._spin_int.stop(); self._pulse_int.stop()
@@ -1357,15 +1399,18 @@ async def _choose_episode_flat(flat_list, title_prefix, subtitle=""):
     return None if idx == -1 else flat_list[idx]
 
 # ─── Helpers chargement saison ────────────────────────────────────────────────
-def _load_season_data(_season_key, url_list):
+def _load_season_data(_season_key, url_list, progress_cb=None, status_cb=None):
     """
     Charge les eps_arrays pour une saison.
-    Retourne (all_eps_arrays, n_total) où n_total est le vrai nombre
-    d'épisodes dans le JS (total URLs, pas seulement les liens compatibles).
+    Retourne (all_eps_arrays, n_total) ou n_total est le vrai nombre
+    d episodes dans le JS (total URLs, pas seulement les liens compatibles).
     """
     all_eps_arrays = []
     n_total = 0
-    for url in url_list:
+    total = max(len(url_list), 1)
+    for idx, url in enumerate(url_list):
+        if progress_cb: progress_cb(int(idx / total * 95))
+        if status_cb: status_cb(f"Fichier {idx + 1}/{total}…")
         try:
             r = requests.get(url, timeout=10)
             if r.status_code != 200:
@@ -1375,11 +1420,9 @@ def _load_season_data(_season_key, url_list):
         eps_list = parse_eps_arrays(r.text)
         if not eps_list:
             continue
-        # eps["total"] = nb d'URLs dans le JS (inclut hébergeurs non supportés)
-        # eps["links"] = seulement les liens compatibles (sibnet/vidmoly/sendvid)
-        # On utilise total pour le comptage réel des épisodes
         n_total = max(n_total, max(e["total"] for e in eps_list))
         all_eps_arrays.extend([e["links"] for e in eps_list])
+        if status_cb: status_cb(f"Fichier {idx + 1}/{total}  ✔  ({n_total} épisodes)")
     return all_eps_arrays, n_total
 
 
