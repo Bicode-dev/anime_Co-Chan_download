@@ -53,6 +53,7 @@ if _missing:
 # ── Imports ───────────────────────────────────────────────────────────────────
 import os, platform, shutil, re, time, random, json
 import tempfile, asyncio, signal
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
@@ -240,16 +241,129 @@ def check_disk_space(min_gb=1):
     except Exception:
         return True
 
+# ── Recherche anime-sama ─────────────────────────────────────────────────────
+_RE_TAG_S   = re.compile(r"<[^>]+>")
+_RE_SPACE_S = re.compile(r"\s+")
+
+def _s_attr(tag: str, name: str) -> str:
+    m = re.search(rf'{name}\s*=\s*["\']([^"\']*)["\']', tag, re.I)
+    return m.group(1) if m else ""
+
+def _s_text(fragment: str) -> str:
+    return _RE_SPACE_S.sub(" ", _RE_TAG_S.sub("", fragment)).strip()
+
+def _parse_search_results(html: str, base_url: str) -> list:
+    """Parse le HTML renvoyé par fetch.php et retourne [{title, url, slug}].
+    
+    Extrait uniquement le titre principal (premier bloc texte de chaque <a>)
+    pour éviter la concaténation titre + sous-titre alternatif.
+    """
+    results = []
+    seen_slugs = set()
+    domain = base_url.rstrip("/").split("/catalogue")[0]  # ex: https://anime-sama.fr
+
+    for m in re.finditer(r"(<a\s[^>]*>)(.*?)</a>", html, re.S | re.I):
+        open_tag, inner = m.group(1), m.group(2)
+        href = _s_attr(open_tag, "href")
+        if not href:
+            continue
+
+        # Slug d'abord — si pas de slug catalogue on ignore
+        full_url = href if href.startswith("http") else domain + href
+        slug_m = re.search(r"/catalogue/([^/]+)", full_url)
+        if not slug_m:
+            continue
+        slug = slug_m.group(1)
+        if slug in seen_slugs:
+            continue
+
+        # ── Extraction titre + sous-titre ─────────────────────────────────
+        def _decode(s):
+            return (s.replace("&#039;", "'").replace("&amp;", "&")
+                     .replace("&lt;", "<").replace("&gt;", ">")
+                     .replace("&quot;", '"').strip())
+
+        # On remplace TOUTES les balises (inline et bloc) par \x00
+        # → chaque tag devient séparateur, les text nodes sont isolés.
+        # Ex: <span>Yofukashi no Uta</span><span>Call of the Night</span>
+        #   → \x00Yofukashi no Uta\x00\x00Call of the Night\x00
+        inner_no_img = re.sub(r"<img\s[^>]*>", "", inner, flags=re.I)
+        raw_chunks = _RE_TAG_S.sub("\x00", inner_no_img).split("\x00")
+        chunks = [_decode(_RE_SPACE_S.sub(" ", c).strip())
+                  for c in raw_chunks if c.strip()]
+
+        # Titre : img alt si dispo (plus propre), sinon 1er chunk
+        title = ""
+        img_m = re.search(r"<img\s[^>]*>", inner, re.I)
+        if img_m:
+            title = _decode(_s_attr(img_m.group(0), "alt"))
+        if not title and chunks:
+            title = chunks[0]
+
+        # Alt title : 1er chunk différent du titre principal
+        alt_title = next(
+            (c for c in chunks if c.lower() != title.lower()),
+            "")
+
+        # Label affiché : "Titre [Alt/Sous-titre]" si différent du titre, sinon "Titre"
+        if alt_title and alt_title.lower() != title.lower():
+            label = f"{title}  [{alt_title}]"
+        else:
+            label = title
+
+        if not title:
+            continue
+
+        seen_slugs.add(slug)
+        results.append({"title": title, "alt_title": alt_title, "label": label, "url": full_url, "slug": slug})
+
+    return results
+
+def search_anime_sama(base_url: str, query: str) -> list:
+    """Appelle l'API de recherche anime-sama et retourne les résultats parsés."""
+    domain = base_url.rstrip("/").split("/catalogue")[0]
+    endpoint = f"{domain}/template-php/defaut/fetch.php"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/124.0.0.0 Safari/537.36",
+        "Referer": f"{domain}/",
+        "Origin": domain,
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Accept": "*/*",
+    }
+    resp = requests.post(endpoint, headers=headers, data={"query": query}, timeout=10)
+    resp.raise_for_status()
+    return _parse_search_results(resp.text, base_url)
+
 # ── Vérification anime ────────────────────────────────────────────────────────
 def check_anime_exists(base_url, name):
-    for lang in ["vf", "vostfr", "va", "vkr", "vcn", "vqc"]:
-        for kind in ["saison1", "film", "oav"]:
-            try:
-                r = requests.get(f"{base_url}{name}/{kind}/{lang}/episodes.js", timeout=5)
-                if r.status_code == 200 and r.text.strip():
-                    return True
-            except Exception:
-                continue
+    """Détection parallèle ultra-rapide — toutes les combinaisons en simultané."""
+    combos = [
+        (lang, kind)
+        for lang in ["vf", "vostfr", "va", "vkr", "vcn", "vqc"]
+        for kind in ["saison1", "film", "oav"]
+    ]
+    session = requests.Session()
+
+    def _probe(lang, kind):
+        try:
+            r = session.get(f"{base_url}{name}/{kind}/{lang}/episodes.js",
+                            timeout=3)
+            return r.status_code == 200 and bool(r.text.strip())
+        except Exception:
+            return False
+
+    with ThreadPoolExecutor(max_workers=len(combos)) as ex:
+        futures = {ex.submit(_probe, lang, kind): (lang, kind)
+                   for lang, kind in combos}
+        for fut in as_completed(futures):
+            if fut.result():
+                # Annule le reste dès le premier succès
+                for f in futures:
+                    f.cancel()
+                return True
     return False
 
 def check_available_languages(base_url, name, progress_cb=None, status_cb=None):
@@ -1745,23 +1859,70 @@ async def menu_settings():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Menu principal téléchargement
 # ═══════════════════════════════════════════════════════════════════════════════
-async def menu_download(base_url):
+async def menu_download(base_url):  # noqa: C901
     while True:
-        # ── Saisie du nom ──────────────────────────────────────────────────
-        anime_raw = await ConsoleUI.input_screen("ANIME", "Nom de l'anime",
-                                                  subtitle="Ex: one piece, naruto, demon slayer…")
-        if not anime_raw: return
-        anime_name = normalize_anime_name(anime_raw)
-        anime_cap  = anime_name.title()
+        # ── Recherche ──────────────────────────────────────────────────────
+        query = await ConsoleUI.input_screen(
+            "RECHERCHE", "Rechercher un anime",
+            subtitle="Ex: one piece, naruto, demon slayer…")
+        if not query:
+            return
 
-        fmt_name = format_url_name(anime_name)
-        exists = await ConsoleUI.working(f"Vérification de « {anime_cap} »…",
-                                         check_anime_exists, base_url, fmt_name)
-        if not exists:
-            await ConsoleUI.result_screen([
-                f"  ✖  « {anime_cap} » introuvable.",
-                "  Essayez le nom japonais ou vérifiez l'orthographe."])
-            continue
+        # ── Bypass : correspondance exacte avec un slug connu ──────────────
+        # Si la saisie, convertie en slug, existe directement sur le site,
+        # on saute la recherche et on va directement au téléchargement.
+        exact_slug = format_url_name(query)
+        exact_exists = await ConsoleUI.working(
+            f"Vérification directe de « {query} »…",
+            check_anime_exists, base_url, exact_slug)
+        if exact_exists:
+            fmt_name  = exact_slug
+            anime_name = normalize_anime_name(query)
+            anime_cap  = query.strip().title()
+            # Sauter directement à la sélection de langue (ci-dessous)
+        else:
+            # ── Appel API de recherche ─────────────────────────────────────
+            try:
+                results = await ConsoleUI.working(
+                    f"Recherche « {query} »…",
+                    search_anime_sama, base_url, query)
+            except Exception:
+                results = []
+
+            if not results:
+                await ConsoleUI.result_screen([
+                    f"  ✖  Aucun résultat pour « {query} ».",
+                    "  Vérifiez l'orthographe ou essayez le nom japonais."])
+                continue
+
+            # ── Auto-redirect si la saisie = titre alternatif exact ────────
+            q_norm = query.strip().lower()
+            auto = next(
+                (r for r in results
+                 if r["alt_title"].lower() == q_norm or r["title"].lower() == q_norm),
+                None)
+            if auto:
+                chosen = auto
+            else:
+                # ── Sélection dans les résultats ───────────────────────────
+                nav_opts = [r["label"] for r in results] + ["🔍  Nouvelle recherche"]
+                chosen_idx = await ConsoleUI.navigate(
+                    nav_opts, "RÉSULTATS", f"{len(results)} résultat(s) pour « {query} »")
+                if chosen_idx < 0 or chosen_idx >= len(results):
+                    continue
+                chosen = results[chosen_idx]
+            fmt_name  = chosen["slug"]
+            anime_name = normalize_anime_name(chosen["title"])
+            anime_cap  = chosen["title"]
+
+            exists = await ConsoleUI.working(
+                f"Vérification de « {anime_cap} »…",
+                check_anime_exists, base_url, fmt_name)
+            if not exists:
+                await ConsoleUI.result_screen([
+                    f"  ✖  « {anime_cap} » trouvé mais aucun épisode disponible.",
+                    "  L'anime existe peut-être mais n'a pas encore de contenu."])
+                continue
 
         # ── Langue ────────────────────────────────────────────────────────
         langs = await ConsoleUI.working("Détection des langues disponibles…",
