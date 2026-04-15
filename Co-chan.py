@@ -343,7 +343,7 @@ def check_anime_exists(base_url, name):
     combos = [
         (lang, kind)
         for lang in ["vf", "vostfr", "va", "vkr", "vcn", "vqc"]
-        for kind in ["saison1", "film", "oav"]
+        for kind in ["saison1", "film", "oav", "kai", "kai2", "kai3"]
     ]
     session = requests.Session()
 
@@ -361,6 +361,32 @@ def check_anime_exists(base_url, name):
         for fut in as_completed(futures):
             if fut.result():
                 # Annule le reste dès le premier succès
+                for f in futures:
+                    f.cancel()
+                return True
+    return False
+
+def check_kai_available(base_url, name):
+    """Vérifie en parallèle si une version Kai existe (toutes langues confondues).
+    Même timeout que check_seasons (10 s) pour ne pas rater les serveurs lents.
+    Couvre kai → kai5 comme check_seasons le ferait (boucle jusqu'à 2 non-trouvés).
+    """
+    langs     = ["vostfr", "vf", "va", "vkr", "vcn", "vqc"]
+    kai_slugs = ["kai"] + [f"kai{i}" for i in range(2, 6)]   # kai, kai2 … kai5
+    combos    = [(lang, slug) for lang in langs for slug in kai_slugs]
+    session   = requests.Session()
+
+    def _probe(lang, kai_slug):
+        try:
+            r = session.get(f"{base_url}{name}/{kai_slug}/{lang}/episodes.js", timeout=10)
+            return r.status_code == 200 and bool(r.text.strip())
+        except Exception:
+            return False
+
+    with ThreadPoolExecutor(max_workers=len(combos)) as ex:
+        futures = {ex.submit(_probe, lang, slug): (lang, slug) for lang, slug in combos}
+        for fut in as_completed(futures):
+            if fut.result():
                 for f in futures:
                     f.cancel()
                 return True
@@ -451,6 +477,24 @@ def check_seasons(base_url, name, language, progress_cb=None, status_cb=None):
                 if status_cb: status_cb(f"{label}  ✔")
         except Exception:
             continue
+    # Versions Kai (kai, kai2, kai3, …)
+    kai_num = 1
+    kai_not_found = 0
+    while kai_not_found < 2:
+        kai_slug = "kai" if kai_num == 1 else f"kai{kai_num}"
+        kai_url = f"{base_url}{name}/{kai_slug}/{language}/episodes.js"
+        if status_cb: status_cb(f"Kai {kai_num}…")
+        try:
+            r = requests.get(kai_url, timeout=10)
+            if r.status_code == 200 and r.text.strip():
+                season_info[kai_slug] = {"type": "kai", "url": kai_url, "variants": []}
+                if status_cb: status_cb(f"Kai {kai_num}  \u2714")
+                kai_not_found = 0
+            else:
+                kai_not_found += 1
+        except Exception:
+            kai_not_found += 1
+        kai_num += 1
     return season_info
 
 def custom_sort_key(x):
@@ -458,6 +502,10 @@ def custom_sort_key(x):
         return (0, int(x))
     if isinstance(x, str) and 'hs' in x:
         return (0, int(x.replace('hs', '')) + 0.5)
+    if isinstance(x, str) and x.startswith('kai'):
+        suffix = x[3:]
+        n = int(suffix) if suffix.isdigit() else 1
+        return (0.9, n)
     if x == "film":
         return (1, 0)
     if x == "oav":
@@ -475,7 +523,7 @@ def resolve_season_choices(season_info):
             urls = [info["url"]]
             urls.extend([v[1] for v in sorted(info.get("variants", []))])
             final_seasons.append((key, urls))
-        elif info["type"] in ["film", "oav"]:
+        elif info["type"] in ["film", "oav", "kai"]:
             final_seasons.append((key, [info["url"]]))
     return final_seasons
 
@@ -616,6 +664,10 @@ def find_last_downloaded_episode(folder_path):
         sn = season.replace('hs', '')
         if sn.isdigit():
             return (0, int(sn), 'hs' in season, ep)
+        if season.startswith('kai'):
+            suffix = season[3:]
+            n = int(suffix) if suffix.isdigit() else 1
+            return (0.9, n, False, ep)
         if season == "film":
             return (1, 0, False, ep)
         if season == "oav":
@@ -1143,6 +1195,15 @@ class WorkingScreen(ModalScreen):
             self.set_timer(0.25, lambda: _safe_dismiss(self, result))
         self._ui(_finish)
 
+
+def _season_display(season_key: str) -> str:
+    """Retourne un label lisible pour un season_key (ex: kai -> Kai 1, 2 -> S2)."""
+    if isinstance(season_key, str) and season_key.startswith("kai"):
+        suffix = season_key[3:]
+        n = int(suffix) if suffix.isdigit() else 1
+        return f"Kai {n}"
+    return f"S{season_key}"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # DownloadScreen – yt-dlp Python API
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1198,7 +1259,7 @@ class DownloadScreen(ModalScreen):
         if success:
             self._ui(self._do_progress, 100)
             if self._pause:
-                hint = f"✔  S{self._season} E{self._episode}  ·  ↵ Continuer"
+                hint = f"✔  {_season_display(self._season)} E{self._episode}  ·  ↵ Continuer"
             else:
                 hint = "✔  Épisode téléchargé — passage au suivant…"
         else:
@@ -1208,7 +1269,7 @@ class DownloadScreen(ModalScreen):
             self.set_timer(1.5, lambda: _safe_dismiss(self, self._result))
 
     def compose(self) -> ComposeResult:
-        ep_lbl = f"S{self._season} · E{self._episode}/{self._total}"
+        ep_lbl = f"{_season_display(self._season)} · E{self._episode}/{self._total}"
         with Vertical(id="dl-wrap"):
             yield Static(_BANNER, markup=True, classes="banner")
             yield Static(f"⬇️   Téléchargement  –  {ep_lbl}", id="dl-title")
@@ -1470,7 +1531,13 @@ async def choose_season_mode(seasons, subtitle=""):
     if has_multi and idx == IDX_MULTI: return "multi_range", None
 
     # Choisir une saison pour les modes restants
-    s_opts = [f"📅  Saison {s_key}" for s_key, _ in seasons]
+    def _season_label(s_key):
+        if s_key.startswith("kai"):
+            suffix = s_key[3:]
+            n = int(suffix) if suffix.isdigit() else 1
+            return f"🔁  Kai {n}"
+        return f"📅  Saison {s_key}"
+    s_opts = [_season_label(s_key) for s_key, _ in seasons]
     s_idx = await ConsoleUI.navigate(
         s_opts, "CHOISIR LA SAISON",
         f"{len(seasons)} saison(s) disponible(s)"
@@ -1555,7 +1622,7 @@ def _best_candidates(all_eps_arrays, episode_num):
 async def _run_download(candidates, filename, season_key, ep_num, n_total, pause=True):
     """Lance le DownloadScreen et retourne True/False."""
     if not candidates:
-        await ConsoleUI.result_screen([f"  ✖  Aucun lien disponible pour S{season_key} E{ep_num}."])
+        await ConsoleUI.result_screen([f"  ✖  Aucun lien disponible pour {_season_display(season_key)} E{ep_num}."])
         return False
     result = await _push_and_wait(
         DownloadScreen(candidates, filename, season_key, ep_num, n_total, pause=pause))
@@ -1924,17 +1991,27 @@ async def menu_download(base_url):  # noqa: C901
                     "  L'anime existe peut-être mais n'a pas encore de contenu."])
                 continue
 
-        # ── Langue ────────────────────────────────────────────────────────
+        # ── Langue + Kai (détection en séquence rapide) ───────────────────
         langs = await ConsoleUI.working("Détection des langues disponibles…",
                                         check_available_languages, base_url, fmt_name)
+        kai_exists = await ConsoleUI.working("Vérification version Kai…",
+                                              check_kai_available, base_url, fmt_name)
+
+        # Subtitle enrichi selon la présence du Kai
+        version_subtitle = (f"« {anime_cap} »  ·  ⚡ Version Kai disponible !"
+                            if kai_exists else f"« {anime_cap} »")
+
         if langs:
             l_opts = [f"[FR]  {l.upper()}" for l in langs] + ["🎌  VOSTFR"]
-            l_idx = await ConsoleUI.navigate(l_opts, "VERSION", f"« {anime_cap} »")
+            l_idx = await ConsoleUI.navigate(l_opts, "VERSION", version_subtitle)
             if l_idx == -1: continue
             selected_lang = langs[l_idx] if l_idx < len(langs) else "vostfr"
         else:
             selected_lang = "vostfr"
-            ConsoleUI.info("Aucune VF — VOSTFR sélectionné automatiquement.")
+            if kai_exists:
+                ConsoleUI.info("Aucune VF — VOSTFR sélectionné automatiquement.  ⚡ Version Kai disponible !")
+            else:
+                ConsoleUI.info("Aucune VF — VOSTFR sélectionné automatiquement.")
 
         folder_name = format_folder_name(anime_cap, selected_lang)
 
@@ -1952,13 +2029,13 @@ async def menu_download(base_url):  # noqa: C901
         last_s, last_e = find_last_downloaded_episode(dl_dir)
         if last_s is not None:
             resume_opts = [
-                f"▶   Reprendre depuis S{last_s} E{last_e}",
+                f"▶   Reprendre depuis {_season_display(last_s)} E{last_e}",
                 "📋  Choisir un autre mode",
                 "📙  Retour",
             ]
             r_idx = await ConsoleUI.navigate(resume_opts, "REPRISE DÉTECTÉE",
                                               f"{anime_cap} ({selected_lang.upper()})"
-                                              f"  ·  Dernier : S{last_s} E{last_e}")
+                                              f"  ·  Dernier : {_season_display(last_s)} E{last_e}")
             if r_idx in (2, -1): continue
             if r_idx == 0:
                 url_list = dict(seasons).get(last_s)
