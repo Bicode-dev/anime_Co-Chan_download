@@ -1590,7 +1590,7 @@ async def download_season_all(anime_name, folder_name, season_key, url_list, _ba
             await ConsoleUI.result_screen(["  ⚠   Espace disque insuffisant — arrêt."])
             break
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=True
+            candidates, filename, season_key, ep_num, n_total, pause=False
         )
         if success: ok += 1
         else: err += 1
@@ -1623,7 +1623,7 @@ async def download_n_episodes(anime_name, folder_name, season_key, url_list, n):
         candidates = _best_candidates(all_eps_arrays, ep_num)
         filename = os.path.join(dl_dir, f"s{season_key}_e{ep_num}.mp4")
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=True
+            candidates, filename, season_key, ep_num, n_total, pause=False
         )
         if success: ok += 1
         else: err += 1
@@ -1669,7 +1669,7 @@ async def download_ep_range(anime_name, folder_name, season_key, url_list, _base
         candidates = _best_candidates(all_eps_arrays, ep_num)
         filename = os.path.join(dl_dir, f"s{season_key}_e{ep_num}.mp4")
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=True
+            candidates, filename, season_key, ep_num, n_total, pause=False
         )
         if success: ok += 1
         else: err += 1
@@ -1731,7 +1731,7 @@ async def download_multi_range(anime_name, folder_name, seasons, _base_url_path)
         arrs, n_total = season_data.get(sk, ([], 0))
         candidates = _best_candidates(arrs, ep_num)
         filename = os.path.join(dl_dir, f"s{sk}_e{ep_num}.mp4")
-        success = await _run_download(candidates, filename, sk, ep_num, n_total, pause=True)
+        success = await _run_download(candidates, filename, sk, ep_num, n_total, pause=False)
         if success: ok += 1
         else: err += 1
 
