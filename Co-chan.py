@@ -2146,6 +2146,7 @@ async def menu_download(base_url):  # noqa: C901
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # Main async
 # ═══════════════════════════════════════════════════════════════════════════════
 async def _app_main():
@@ -2169,7 +2170,9 @@ async def _app_main():
 
     while True:
         choice = await ConsoleUI.navigate(
-            ["🌸  Télécharger un anime", "⚙️   Paramètres", "✖   Quitter"],
+            ["🌸  Télécharger un anime",
+             "⚙️   Paramètres",
+             "✖   Quitter"],
             "  ◈  CO-CHAN  ◈", f"v{VERSION}  ·  anime-sama")
         if choice == 0:
             await menu_download(base_url)
