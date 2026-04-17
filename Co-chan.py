@@ -570,11 +570,21 @@ def extract_video_links(url):
     return [eps["links"] for eps in eps_list] if eps_list else []
 
 def get_vidmoly_m3u8(video_id):
+    """
+    Récupère l'URL m3u8 depuis la page embed Vidmoly.
+    Retourne l'URL du master playlist (yt-dlp gère la sélection de qualité).
+    Préfère les URLs sans paramètres superflus pour éviter les erreurs de codec.
+    """
     session = requests.Session()
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
         "Referer": "https://vidmoly.biz/",
-        "Accept": "text/html,application/xhtml+xml",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
     }
     url = f"https://vidmoly.biz/embed-{video_id}.html"
     for attempt in range(5):
@@ -582,16 +592,28 @@ def get_vidmoly_m3u8(video_id):
             resp = session.get(url, headers=headers, timeout=15)
             if resp.status_code == 404:
                 return None
-            m = re.search(
-                r'https?://[^\s"\']+\.m3u8[^\s"\']*',
-                resp.content.decode("utf-8", errors="ignore")
-            )
-            if m:
-                return m.group(0)
+            html = resp.content.decode("utf-8", errors="ignore")
+
+            # 1) Cherche toutes les URLs m3u8 dans la page
+            all_m3u8 = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', html)
+            if not all_m3u8:
+                # Parfois encodées en JS : cherche dans les strings JS échappées
+                escaped = re.findall(r'https?:\\/\\/[^\s"\'<>]+\.m3u8[^\s"\'<>]*', html)
+                all_m3u8 = [u.replace("\\/", "/") for u in escaped]
+
+            if all_m3u8:
+                # Préfère le master playlist (sans suffixe de rendition comme _720 _480)
+                # On priorise l'URL la plus courte / sans index de segment
+                master_candidates = [
+                    u for u in all_m3u8
+                    if not re.search(r'[_\-](seg|chunk|index)\d', u, re.I)
+                ]
+                return master_candidates[0] if master_candidates else all_m3u8[0]
+
         except Exception:
             pass
         if attempt < 4:
-            time.sleep(1)
+            time.sleep(1 + attempt * 0.5)
     return None
 
 # ── Couverture anime ──────────────────────────────────────────────────────────
@@ -1345,13 +1367,17 @@ class DownloadScreen(ModalScreen):
             final_url = link_value
 
         # Format
-        if link_type == "vidmoly":
-            fmt = (
-                "bestvideo[ext=mp4]+bestaudio[ext=m4a]"
-                "/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best"
-            )
-        else:
-            fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
+        # Format unifié : 720p en priorité pour tous les hébergeurs.
+        # On préfère les renditions pré-muxées (best) pour éviter les bugs de fusion audio,
+        # et on tombe sur le split vidéo+audio seulement si aucune rendition muxée n'est dispo.
+        fmt = (
+            "best[ext=mp4][height<=720]"
+            "/best[height<=720]"
+            "/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]"
+            "/bestvideo[height<=720]+bestaudio"
+            "/best[ext=mp4]"
+            "/best"
+        )
 
         # ── Dossier temp : même nom que l'épisode + .tmp (comme Co-flix) ──────
         ep_base  = os.path.splitext(os.path.basename(self._filename))[0]   # ex: s1_e3
@@ -1369,6 +1395,9 @@ class DownloadScreen(ModalScreen):
 
         cancelled_ref = [False]
         _season, _episode, _total = self._season, self._episode, self._total
+        # Compteur de flux terminés : sur Termux, 1 seul "finished" = flux pré-muxé
+        # (pas de fusion réelle). 2+ "finished" = split vidéo+audio → ffmpeg appelé.
+        _finished_count = [0]
 
         def _hook(d):
             if self._cancelled or cancelled_ref[0]:
@@ -1395,9 +1424,16 @@ class DownloadScreen(ModalScreen):
                 info = "  ·  ".join(p for p in parts if p)
                 self._ui(self._do_info, info[:72])
             elif d["status"] == "finished":
+                _finished_count[0] += 1
                 self._ui(self._do_progress, 99)
-                self._ui(self._do_info, "✔  Fusion des flux…")
-                self._ui(self._do_log, "✔  Fusion en cours…", "dim white")
+                # Sur Termux uniquement : n'affiche "Fusion" que si ffmpeg est
+                # réellement utilisé (2e flux téléchargé = split vidéo+audio).
+                # Hors Termux : comportement inchangé.
+                if not _is_termux() or _finished_count[0] > 1:
+                    self._ui(self._do_info, "✔  Fusion des flux…")
+                    self._ui(self._do_log, "✔  Fusion en cours…", "dim white")
+                else:
+                    self._ui(self._do_info, "✔  Téléchargement terminé…")
 
         ydl_opts = {
             "outtmpl":                  self._filename,
@@ -1415,6 +1451,10 @@ class DownloadScreen(ModalScreen):
             "retry_sleep_functions":    {"fragment": lambda n: 2},
             "skip_unavailable_fragments": True,
             "paths":                    {"temp": temp_dir},
+            # Lors d'une fusion vidéo+audio, force le codec audio en AAC
+            # pour garantir la compatibilité mp4 (évite EAC-3, Opus, etc.)
+            # -c:v copy = pas de ré-encodage vidéo → rapide
+            "postprocessor_args":       {"ffmpeg": ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k"]},
         }
 
         try:
