@@ -841,6 +841,26 @@ _SPLASH_ART = (
     "  ════════════════════════════════════"
 )
 
+# Version réduite pour Termux (~35 chars max) : CO empilé au-dessus de CHAN
+_SPLASH_ART_TERMUX = (
+    "  ═══════════════════════════════\n"
+    "\n"
+    "   ██████╗  ██████╗\n"
+    "  ██╔════╝██╔═══██╗\n"
+    "  ██║     ██║   ██║\n"
+    "  ██║     ██║   ██║\n"
+    "  ╚██████╗╚██████╔╝\n"
+    "   ╚═════╝ ╚═════╝\n"
+    "  ██████╗██╗  ██╗ █████╗ ███╗\n"
+    " ██╔════╝██║  ██║██╔══██╗████╗\n"
+    " ██║     ███████║███████║██╔╝█║\n"
+    " ██║     ██╔══██║██╔══██║██║ ╚╝\n"
+    " ╚██████╗██║  ██║██║  ██║██║\n"
+    "  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝\n"
+    "\n"
+    "  ═══════════════════════════════"
+)
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # App Textual
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1075,8 +1095,9 @@ class SplashScreen(ModalScreen):
         try: self.query_one("#splash-sub", Static).update(msg)
         except Exception: pass
     def compose(self) -> ComposeResult:
+        art = _SPLASH_ART_TERMUX if _is_termux() else _SPLASH_ART
         with Vertical(id="splash-wrap"):
-            yield Static(_SPLASH_ART, id="splash-ascii")
+            yield Static(art, id="splash-ascii")
             yield Static("🔍  Recherche du serveur actif…", id="splash-step")
             yield Static("Initialisation…", id="splash-sub")
             with Center():
@@ -1240,10 +1261,11 @@ class DownloadScreen(ModalScreen):
     ]
 
     def __init__(self, candidates, filename, display_season, episode_num,
-                 total_episodes, pause=True):
+                 total_episodes, pause=True, anime_name=""):
         """
         candidates : list of (link_type, link_value) – primary first, then fallbacks
         filename   : full path for the output .mp4
+        anime_name : nom de l'anime affiché dans le titre
         """
         super().__init__()
         self._candidates   = candidates
@@ -1252,6 +1274,7 @@ class DownloadScreen(ModalScreen):
         self._episode      = episode_num
         self._total        = total_episodes
         self._pause        = pause
+        self._anime_name   = anime_name.title() if anime_name else ""
         self._cancelled    = False
         self._result       = None   # True/False when done
 
@@ -1292,9 +1315,10 @@ class DownloadScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         ep_lbl = f"{_season_display(self._season)} · E{self._episode}/{self._total}"
+        anime_prefix = f"🌸  {self._anime_name}  —  " if self._anime_name else ""
         with Vertical(id="dl-wrap"):
             yield Static(_BANNER, markup=True, classes="banner")
-            yield Static(f"⬇️   Téléchargement  –  {ep_lbl}", id="dl-title")
+            yield Static(f"⬇️   {anime_prefix}{ep_lbl}", id="dl-title")
             yield Static(f"Fichier : {os.path.basename(self._filename)}", id="dl-subtitle")
             yield Static("Initialisation…", id="dl-info")
             with Center():
@@ -1659,25 +1683,29 @@ def _best_candidates(all_eps_arrays, episode_num):
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fonctions de téléchargement TUI
 # ═══════════════════════════════════════════════════════════════════════════════
-async def _run_download(candidates, filename, season_key, ep_num, n_total, pause=True):
+async def _run_download(candidates, filename, season_key, ep_num, n_total, pause=True, anime_name=""):
     """Lance le DownloadScreen et retourne True/False."""
     if not candidates:
         await ConsoleUI.result_screen([f"  ✖  Aucun lien disponible pour {_season_display(season_key)} E{ep_num}."])
         return False
     result = await _push_and_wait(
-        DownloadScreen(candidates, filename, season_key, ep_num, n_total, pause=pause))
+        DownloadScreen(candidates, filename, season_key, ep_num, n_total, pause=pause,
+                       anime_name=anime_name))
     return bool(result)
 
 
 async def download_season_all(anime_name, folder_name, season_key, url_list, _base_url_path,
-                               start_ep=1, only_one=False):
-    """Télécharge tous les épisodes d'une saison (ou depuis start_ep)."""
+                               start_ep=1, only_one=False, silent=False):
+    """Télécharge tous les épisodes d'une saison (ou depuis start_ep).
+    Si silent=True, n'affiche pas l'écran de résultat final (pour le mode 'tout télécharger').
+    Retourne (ok, err).
+    """
     result = await ConsoleUI.working(f"Chargement saison {season_key}…",
                                       _load_season_data, season_key, url_list)
     all_eps_arrays, n_total = result
     if not all_eps_arrays or n_total == 0:
         await ConsoleUI.result_screen([f"  ✖  Saison {season_key} inaccessible."])
-        return
+        return 0, 0
 
     dl_dir = os.path.join(get_download_path(), folder_name)
     os.makedirs(dl_dir, exist_ok=True)
@@ -1697,16 +1725,19 @@ async def download_season_all(anime_name, folder_name, season_key, url_list, _ba
             await ConsoleUI.result_screen(["  ⚠   Espace disque insuffisant — arrêt."])
             break
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=False
+            candidates, filename, season_key, ep_num, n_total, pause=False,
+            anime_name=anime_name
         )
         if success: ok += 1
         else: err += 1
 
-    await ConsoleUI.result_screen([
-        f"  ✔  Saison {season_key} terminée",
-        f"  ✔  Réussis : {ok}",
-        f"  ⚠   Erreurs : {err}",
-        f"  📂  {dl_dir}"])
+    if not silent:
+        await ConsoleUI.result_screen([
+            f"  ✔  Saison {season_key} terminée",
+            f"  ✔  Réussis : {ok}",
+            f"  ⚠   Erreurs : {err}",
+            f"  📂  {dl_dir}"])
+    return ok, err
 
 
 async def download_n_episodes(anime_name, folder_name, season_key, url_list, n):
@@ -1730,7 +1761,8 @@ async def download_n_episodes(anime_name, folder_name, season_key, url_list, n):
         candidates = _best_candidates(all_eps_arrays, ep_num)
         filename = os.path.join(dl_dir, f"s{season_key}_e{ep_num}.mp4")
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=False
+            candidates, filename, season_key, ep_num, n_total, pause=False,
+            anime_name=anime_name
         )
         if success: ok += 1
         else: err += 1
@@ -1776,7 +1808,8 @@ async def download_ep_range(anime_name, folder_name, season_key, url_list, _base
         candidates = _best_candidates(all_eps_arrays, ep_num)
         filename = os.path.join(dl_dir, f"s{season_key}_e{ep_num}.mp4")
         success = await _run_download(
-            candidates, filename, season_key, ep_num, n_total, pause=False
+            candidates, filename, season_key, ep_num, n_total, pause=False,
+            anime_name=anime_name
         )
         if success: ok += 1
         else: err += 1
@@ -1838,7 +1871,8 @@ async def download_multi_range(anime_name, folder_name, seasons, _base_url_path)
         arrs, n_total = season_data.get(sk, ([], 0))
         candidates = _best_candidates(arrs, ep_num)
         filename = os.path.join(dl_dir, f"s{sk}_e{ep_num}.mp4")
-        success = await _run_download(candidates, filename, sk, ep_num, n_total, pause=False)
+        success = await _run_download(candidates, filename, sk, ep_num, n_total, pause=False,
+                                      anime_name=anime_name)
         if success: ok += 1
         else: err += 1
 
@@ -2091,8 +2125,21 @@ async def menu_download(base_url):  # noqa: C901
         if mode is None: continue
 
         if mode == "all":
+            grand_ok, grand_err, grand_sk_done = 0, 0, []
             for sk, url_list in seasons:
-                await download_season_all(anime_name, folder_name, sk, url_list, base_url)
+                ok_s, err_s = await download_season_all(
+                    anime_name, folder_name, sk, url_list, base_url, silent=True)
+                grand_ok  += ok_s
+                grand_err += err_s
+                grand_sk_done.append(f"  ✔  {_season_display(sk)}  :  {ok_s} épisode(s)")
+            dl_dir = os.path.join(get_download_path(), folder_name)
+            await ConsoleUI.result_screen(
+                ["  ✔  TOUTES LES SAISONS TÉLÉCHARGÉES", ""]
+                + grand_sk_done
+                + ["",
+                   f"  ✔  Total réussis : {grand_ok}",
+                   f"  ⚠   Total erreurs : {grand_err}",
+                   f"  📂  {dl_dir}"])
             continue
 
         if mode == "multi_range":
@@ -2165,7 +2212,7 @@ async def menu_download(base_url):  # noqa: C901
                     break
                 success = await _run_download(
                     candidates, filename, cur_season_key,
-                    ep_num, cur_n_total, pause=True
+                    ep_num, cur_n_total, pause=True, anime_name=anime_cap
                 )
                 if not success:
                     await ConsoleUI.result_screen(["  ✖  Téléchargement échoué ou annulé."])
