@@ -1391,14 +1391,14 @@ class DownloadScreen(ModalScreen):
             final_url = link_value
 
         # Format
-        # Format unifié : 720p en priorité pour tous les hébergeurs.
+        # Format unifié : 1080p en priorité pour tous les hébergeurs.
         # On préfère les renditions pré-muxées (best) pour éviter les bugs de fusion audio,
         # et on tombe sur le split vidéo+audio seulement si aucune rendition muxée n'est dispo.
         fmt = (
-            "best[ext=mp4][height<=720]"
-            "/best[height<=720]"
-            "/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]"
-            "/bestvideo[height<=720]+bestaudio"
+            "best[ext=mp4][height<=1080]"
+            "/best[height<=1080]"
+            "/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]"
+            "/bestvideo[height<=1080]+bestaudio"
             "/best[ext=mp4]"
             "/best"
         )
