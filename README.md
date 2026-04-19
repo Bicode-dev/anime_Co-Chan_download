@@ -56,7 +56,9 @@ Les dépendances (`textual`, `yt-dlp`, `requests`, `rich`) s'installent automati
 
 ### 📱 Android (Termux)
 
-> 🚧 Un projet dédié à l'installation sur Termux est actuellement en développement.
+```bash
+bash Co-chan_download_termux.sh
+```
 
 ---
 
@@ -134,7 +136,7 @@ Co-Chan ne devrait jamais déclencher Windows Defender. Si une alerte apparaît,
 <details>
 <summary><b>Une version Android est-elle disponible ?</b></summary>
 
-Un projet dédié à l'installation sur Termux est actuellement en développement. Stay tuned !
+Oui ! Un script d'installation Termux est disponible dans le dépôt GitHub. L'interface s'adapte automatiquement à Termux.
 </details>
 
 <details>
