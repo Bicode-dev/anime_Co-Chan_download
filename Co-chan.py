@@ -188,6 +188,17 @@ def format_folder_name(name, language):
 def normalize_anime_name(name):
     return ' '.join(name.strip().split()).lower()
 
+def _get_quality() -> int:
+    """Retourne la hauteur max configurée (1080 / 720 / 480). Défaut : 720."""
+    cfg = _load_config()
+    if "quality" not in cfg:
+        _save_config({"quality": 720})
+        return 720
+    try:
+        return int(cfg.get("quality", 720))
+    except (ValueError, TypeError):
+        return 720
+
 # ── Domaine anime-sama ────────────────────────────────────────────────────────
 def _get_active_domain_sync():
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
@@ -240,6 +251,180 @@ def check_disk_space(min_gb=1):
         return free / (1024**3) >= min_gb
     except Exception:
         return True
+
+# ── Auto-installation ffmpeg ──────────────────────────────────────────────────
+
+def _ffmpeg_temp_dir():
+    """Dossier d'installation de ffmpeg selon l'OS (dossiers temp natifs)."""
+    s = platform.system()
+    if s == "Windows":
+        # C:\Users\<user>\AppData\Local\Temp\cochan_ffmpeg
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "Temp", "cochan_ffmpeg")
+    elif s == "Darwin":
+        # /private/tmp/cochan_ffmpeg  (équivaut à /tmp sur macOS)
+        return "/private/tmp/cochan_ffmpeg"
+    else:
+        # Linux : /tmp/cochan_ffmpeg  (vidé au reboot, suffisant)
+        return "/tmp/cochan_ffmpeg"
+
+
+def _dl_ffmpeg_zip(url, dest_path, member_suffix, log_cb):
+    """Télécharge un .zip et en extrait le binaire ffmpeg."""
+    import zipfile, io as _io2
+    try:
+        log_cb("  Connexion…")
+        r = requests.get(url, timeout=120, stream=True)
+        r.raise_for_status()
+        total = int(r.headers.get("content-length", 0))
+        buf = bytearray()
+        done = 0
+        for chunk in r.iter_content(65536):
+            buf.extend(chunk)
+            done += len(chunk)
+            if total:
+                log_cb(f"  Téléchargement ffmpeg… {int(done/total*100)}%")
+        log_cb("  Extraction…")
+        with zipfile.ZipFile(_io2.BytesIO(bytes(buf))) as zf:
+            candidates = [n for n in zf.namelist()
+                          if n.endswith(member_suffix) and "/doc/" not in n]
+            if not candidates:
+                log_cb("✖  Binaire introuvable dans l'archive zip")
+                return
+            with zf.open(candidates[0]) as src, open(dest_path, "wb") as dst:
+                dst.write(src.read())
+    except Exception as e:
+        log_cb(f"✖  Erreur zip : {e}")
+
+
+def _dl_ffmpeg_tar(url, dest_path, log_cb):
+    """Télécharge un .tar.xz et en extrait le binaire ffmpeg."""
+    import tarfile, io as _io2
+    try:
+        log_cb("  Connexion…")
+        r = requests.get(url, timeout=180, stream=True)
+        r.raise_for_status()
+        total = int(r.headers.get("content-length", 0))
+        buf = bytearray()
+        done = 0
+        for chunk in r.iter_content(65536):
+            buf.extend(chunk)
+            done += len(chunk)
+            if total:
+                log_cb(f"  Téléchargement ffmpeg… {int(done/total*100)}%")
+        log_cb("  Extraction…")
+        with tarfile.open(fileobj=_io2.BytesIO(bytes(buf)), mode="r:xz") as tf:
+            candidates = [m for m in tf.getmembers()
+                          if m.name.endswith("/ffmpeg") and m.isfile()]
+            if not candidates:
+                log_cb("✖  Binaire introuvable dans l'archive tar")
+                return
+            src = tf.extractfile(candidates[0])
+            with open(dest_path, "wb") as dst:
+                dst.write(src.read())
+    except Exception as e:
+        log_cb(f"✖  Erreur tar : {e}")
+
+
+def _ensure_ffmpeg(status_cb=None):
+    """
+    Garantit que ffmpeg est disponible.
+    Ordre de priorité :
+      1. déjà dans PATH
+      2. déjà téléchargé (config)
+      3. Termux → pkg install ffmpeg
+      4. macOS → brew install ffmpeg (si brew dispo)
+      5. téléchargement binaire statique dans le dossier temp OS
+    Retourne le chemin absolu vers ffmpeg, ou None si tout échoue.
+    """
+    def _log(msg):
+        if status_cb: status_cb(msg)
+
+    # 1) Déjà dans PATH ?
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+
+    # 2) Déjà téléchargé et sauvegardé en config ?
+    cfg = _load_config()
+    cached = cfg.get("ffmpeg_path")
+    if cached and os.path.isfile(cached) and os.path.getsize(cached) > 0:
+        return cached
+
+    s = platform.system()
+
+    # 3) Termux → pkg install
+    if _is_termux():
+        _log("Installation de ffmpeg via pkg…")
+        try:
+            ret = subprocess.call(
+                ["pkg", "install", "ffmpeg", "-y"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            found = shutil.which("ffmpeg")
+            if found:
+                return found
+        except Exception:
+            pass
+        _log("⚠  pkg install ffmpeg a échoué")
+        return None
+
+    dest_dir = _ffmpeg_temp_dir()
+    os.makedirs(dest_dir, exist_ok=True)
+    ffmpeg_bin = "ffmpeg.exe" if s == "Windows" else "ffmpeg"
+    ffmpeg_path = os.path.join(dest_dir, ffmpeg_bin)
+
+    # 4) macOS → Homebrew d'abord
+    if s == "Darwin" and shutil.which("brew"):
+        _log("Installation de ffmpeg via Homebrew…")
+        try:
+            ret = subprocess.call(
+                ["brew", "install", "ffmpeg"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            found = shutil.which("ffmpeg")
+            if found:
+                return found
+        except Exception:
+            pass
+
+    # 5) Téléchargement du binaire statique
+    machine = platform.machine().lower()
+
+    if s == "Windows":
+        _log("Téléchargement ffmpeg pour Windows…")
+        url = ("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/"
+               "latest/ffmpeg-master-latest-win64-gpl.zip")
+        _dl_ffmpeg_zip(url, ffmpeg_path, "ffmpeg.exe", _log)
+
+    elif s == "Darwin":
+        _log("Téléchargement ffmpeg pour macOS…")
+        url = "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip"
+        _dl_ffmpeg_zip(url, ffmpeg_path, "ffmpeg", _log)
+
+    else:  # Linux (dont WSL)
+        if "aarch64" in machine or "arm64" in machine:
+            url = ("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/"
+                   "latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz")
+        elif "arm" in machine:
+            url = ("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/"
+                   "latest/ffmpeg-master-latest-linuxarm32-gpl.tar.xz")
+        else:
+            url = ("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/"
+                   "latest/ffmpeg-master-latest-linux64-gpl.tar.xz")
+        _log("Téléchargement ffmpeg pour Linux…")
+        _dl_ffmpeg_tar(url, ffmpeg_path, _log)
+
+    if os.path.isfile(ffmpeg_path) and os.path.getsize(ffmpeg_path) > 0:
+        if s != "Windows":
+            os.chmod(ffmpeg_path, 0o755)
+        _save_config({"ffmpeg_path": ffmpeg_path})
+        _log("✔  ffmpeg installé")
+        return ffmpeg_path
+
+    _log("⚠  ffmpeg non disponible – stabilité réduite")
+    return None
+
 
 # ── Recherche anime-sama ─────────────────────────────────────────────────────
 _RE_TAG_S   = re.compile(r"<[^>]+>")
@@ -1112,15 +1297,28 @@ class SplashScreen(ModalScreen):
         try: self.query_one("#splash-spinner", Static).update(f"  {self._SPIN[self._spin_i]}")
         except Exception: pass
     def _run_sync(self):
-        self._ui(self._set_step, "🔍  Recherche du serveur actif…", 20)
+        self._ui(self._set_step, "🔍  Recherche du serveur actif…", 15)
         self._ui(self._set_sub, "Connexion à anime-sama…")
         domain = _get_active_domain_sync()
         if domain:
-            self._ui(self._set_step, "✅  Serveur trouvé !", 80)
+            self._ui(self._set_step, "✅  Serveur trouvé !", 45)
             self._ui(self._set_sub, domain)
         else:
-            self._ui(self._set_step, "⚠️  Domaine introuvable – saisie requise", 50)
-        self._result = {"domain": domain or ""}
+            self._ui(self._set_step, "⚠️  Domaine introuvable – saisie requise", 45)
+
+        # ── Vérification / installation de ffmpeg ─────────────────────────
+        self._ui(self._set_step, "🎬  Vérification de ffmpeg…", 60)
+        ffmpeg_path = _ensure_ffmpeg(
+            status_cb=lambda m: self._ui(self._set_sub, m)
+        )
+        if ffmpeg_path:
+            self._ui(self._set_step, "✅  ffmpeg prêt !", 90)
+            self._ui(self._set_sub, os.path.dirname(ffmpeg_path))
+        else:
+            self._ui(self._set_step, "⚠️  ffmpeg introuvable", 90)
+            self._ui(self._set_sub, "Téléchargements m3u8 moins stables")
+
+        self._result = {"domain": domain or "", "ffmpeg_path": ffmpeg_path}
         if _APP:
             try: _APP.call_from_thread(self._finish)
             except Exception: _safe_dismiss(self, self._result)
@@ -1390,15 +1588,17 @@ class DownloadScreen(ModalScreen):
         else:
             final_url = link_value
 
-        # Format
-        # Format unifié : 1080p en priorité pour tous les hébergeurs.
-        # On préfère les renditions pré-muxées (best) pour éviter les bugs de fusion audio,
-        # et on tombe sur le split vidéo+audio seulement si aucune rendition muxée n'est dispo.
+        # ── Qualité configurée (défaut 720p pour équilibre taille/qualité) ──
+        quality = _get_quality()
+
+        # Format : on préfère les renditions pré-muxées (best) pour éviter
+        # les bugs de fusion audio, et on tombe sur le split vidéo+audio
+        # seulement si aucune rendition muxée n'est disponible.
         fmt = (
-            "best[ext=mp4][height<=1080]"
-            "/best[height<=1080]"
-            "/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]"
-            "/bestvideo[height<=1080]+bestaudio"
+            f"best[ext=mp4][height<={quality}]"
+            f"/best[height<={quality}]"
+            f"/bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]"
+            f"/bestvideo[height<={quality}]+bestaudio"
             "/best[ext=mp4]"
             "/best"
         )
@@ -1414,8 +1614,15 @@ class DownloadScreen(ModalScreen):
             temp_dir = os.path.join(tempfile.gettempdir(), "anime-dl", ep_base + ".tmp")
         os.makedirs(temp_dir, exist_ok=True)
 
-        # Fragments parallèles : adapté à la puissance de l'appareil
-        concurrent = 3 if _is_termux() else 4
+        # ── Concurrence fragments : réduit pour m3u8 (Vidmoly) pour éviter
+        # le rate-limiting serveur qui cause les pauses/reprises aléatoires ──
+        is_m3u8 = link_type == "vidmoly"  # Vidmoly = stream HLS/m3u8
+        if is_m3u8:
+            concurrent = 1   # 1 seul fragment à la fois pour HLS → stable
+        elif _is_termux():
+            concurrent = 2
+        else:
+            concurrent = 3
 
         cancelled_ref = [False]
         _season, _episode, _total = self._season, self._episode, self._total
@@ -1462,24 +1669,36 @@ class DownloadScreen(ModalScreen):
         ydl_opts = {
             "outtmpl":                  self._filename,
             "quiet":                    True,
-            "ignoreerrors":             True,
+            "ignoreerrors":             False,
             "progress_hooks":           [_hook],
             "no_warnings":              True,
             "noprogress":               False,
             "format":                   fmt,
             "merge_output_format":      "mp4",
-            "socket_timeout":           60,
-            "retries":                  15,
-            "fragment_retries":         15,
+            "socket_timeout":           30,
+            "retries":                  20,
+            "fragment_retries":         20,
             "concurrent_fragment_downloads": concurrent,
-            "retry_sleep_functions":    {"fragment": lambda n: 2},
-            "skip_unavailable_fragments": True,
+            # Backoff exponentiel : 5s, 10s, 20s… évite le throttle serveur
+            "retry_sleep_functions":    {"fragment": lambda n: min(5 * (2 ** n), 60)},
+            # Ne pas skipper les fragments manquants → détecte les fichiers corrompus
+            "skip_unavailable_fragments": False,
             "paths":                    {"temp": temp_dir},
-            # Lors d'une fusion vidéo+audio, force le codec audio en AAC
-            # pour garantir la compatibilité mp4 (évite EAC-3, Opus, etc.)
-            # -c:v copy = pas de ré-encodage vidéo → rapide
             "postprocessor_args":       {"ffmpeg": ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k"]},
         }
+
+        # Injecter le chemin ffmpeg si auto-installé (pas dans PATH)
+        cfg = _load_config()
+        _ffmpeg_bin = cfg.get("ffmpeg_path") or shutil.which("ffmpeg")
+        if _ffmpeg_bin and not shutil.which("ffmpeg"):
+            ydl_opts["ffmpeg_location"] = os.path.dirname(_ffmpeg_bin)
+
+        # Pour les streams HLS (m3u8 Vidmoly) : on demande à yt-dlp d'utiliser
+        # ffmpeg EN INTERNE pour le téléchargement HLS (plus stable, reconnexion auto).
+        # On N'utilise PAS external_downloader qui court-circuite les progress hooks
+        # et casserait la barre de progression / vitesse dans la TUI.
+        if is_m3u8:
+            ydl_opts["hls_prefer_native"] = False
 
         try:
             with YoutubeDL(ydl_opts) as ydl:
@@ -1956,11 +2175,15 @@ async def _termux_pick_storage(dl_path: list):
 async def menu_settings():
     dl_path = [get_download_path()]
     while True:
+        cfg = _load_config()
+        current_quality = cfg.get("quality", 720)
+        quality_label = f"🎞️   Qualité vidéo  ({current_quality}p)"
+
         if _is_termux():
             base_opts = ["📲  Choisir le device de stockage", "📂  Ouvrir le dossier actuel"]
         else:
             base_opts = ["📁  Changer le dossier de téléchargement", "📂  Ouvrir le dossier actuel"]
-        options = base_opts + ["📙  Retour"]
+        options = base_opts + [quality_label, "📙  Retour"]
         choice = await ConsoleUI.navigate(options, "PARAMÈTRES", f"Dossier : {dl_path[0]}")
         if choice in (-1, len(options) - 1): return
         if choice == 0:
@@ -1995,6 +2218,24 @@ async def menu_settings():
                     time.sleep(1)
                 except Exception as e:
                     await ConsoleUI.result_screen([f"  ✖  {e}"])
+        elif choice == 2:
+            # Choix de la qualité
+            q_opts = [
+                "🔵  1080p  (haute qualité · ~800 Mo–1 Go/épisode)",
+                "🟢  720p   (équilibre · ~150–300 Mo/épisode)  ← recommandé",
+                "🟡  480p   (léger · ~80–150 Mo/épisode)",
+                "📙  Annuler",
+            ]
+            q_idx = await ConsoleUI.navigate(q_opts, "QUALITÉ VIDÉO",
+                                              f"Qualité actuelle : {current_quality}p")
+            q_map = {0: 1080, 1: 720, 2: 480}
+            if q_idx in q_map:
+                new_q = q_map[q_idx]
+                _save_config({"quality": new_q})
+                await ConsoleUI.result_screen([
+                    f"  ✔  Qualité réglée sur {new_q}p",
+                    "  Les téléchargements suivants utiliseront cette qualité.",
+                ])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
