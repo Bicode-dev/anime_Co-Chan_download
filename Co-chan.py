@@ -904,7 +904,7 @@ MenuScreen { align: center middle; }
     width: 1fr;
     max-width: 72;
     height: auto;
-    max-height: 95vh;
+    max-height: 90%;
     border: heavy #3a3a3a;
     background: #0f0f0f;
     padding: 0 0 1 0;
@@ -932,16 +932,15 @@ MenuScreen { align: center middle; }
 #menu-list {
     height: auto;
     max-height: 36;
-    border: none;
-    background: transparent;
+    border: hidden;
     margin: 1 2;
-    overflow-y: auto;
+    overflow-y: scroll;
 }
 
 #menu-list ListItem {
     padding: 1 2;
     color: #606060;
-    background: transparent;
+    background: #0f0f0f;
     height: 3;
 }
 
@@ -973,10 +972,10 @@ InputScreen { align: center middle; }
 #input-hint { color: #454545; text-align: center; padding-top: 1; height: 1; }
 
 ResultScreen { align: center middle; }
-#result-wrap { width: 1fr; max-width: 72; height: auto; max-height: 95vh; border: heavy #3a3a3a; background: #0f0f0f; padding: 0 0 1 0; }
+#result-wrap { width: 1fr; max-width: 72; height: auto; max-height: 90%; border: heavy #3a3a3a; background: #0f0f0f; padding: 0 0 1 0; }
 #result-title { background: #0c0c0c; color: #ffffff; text-align: center; padding: 0 2; text-style: bold; border-bottom: solid #252525; height: 1; }
 #result-subtitle { color: #909090; text-align: center; padding: 0 1; text-style: italic; height: 1; border-bottom: solid #1a1a1a; }
-#result-body { height: auto; max-height: 28; overflow-y: auto; padding: 1 3; padding-bottom: 1; }
+#result-body { height: auto; max-height: 28; overflow-y: scroll; padding: 1 3; padding-bottom: 1; }
 #result-hint { color: #454545; text-align: center; border-top: solid #252525; padding-top: 1; height: 1; margin-top: 1; }
 
 SplashScreen { align: center middle; background: #0a0a0a; }
@@ -997,7 +996,7 @@ ProgressBar > .bar--bar  { color: #909090; }
 ProgressBar > .bar--complete { color: #d0d0d0; }
 
 DownloadScreen { align: center middle; }
-#dl-wrap { width: 1fr; max-width: 82; height: auto; max-height: 95vh; border: heavy #3a3a3a; background: #0f0f0f; padding: 1 3; }
+#dl-wrap { width: 1fr; max-width: 82; height: auto; max-height: 90%; border: heavy #3a3a3a; background: #0f0f0f; padding: 1 3; }
 #dl-title { color: #ffffff; text-style: bold; text-align: center; padding: 0 1; height: 1; }
 #dl-subtitle { color: #909090; text-align: center; text-style: italic; padding: 0 1; height: 1; }
 #dl-info { color: #606060; text-align: center; padding: 0 1; height: 1; }
@@ -1137,7 +1136,30 @@ class MenuScreen(ModalScreen):
             with ListView(id="menu-list"):
                 for opt in self._options: yield ListItem(Label(_strip_ansi(opt)))
             yield Static("↑↓ Naviguer  ·  ↵ Valider  ·  Échap Retour", id="menu-hint")
-    def on_mount(self): self.query_one("#menu-list", ListView).focus()
+    def on_mount(self):
+        lv = self.query_one("#menu-list", ListView)
+        lv.focus()
+        if not _is_termux():
+            self._update_highlight(lv.index)
+
+    def _update_highlight(self, index):
+        if _is_termux():
+            return
+        for i, item in enumerate(self.query("#menu-list ListItem")):
+            try:
+                lbl = item.query_one(Label)
+                if i == index:
+                    lbl.styles.color = "#ffffff"
+                    lbl.styles.text_style = "bold"
+                else:
+                    lbl.styles.color = "#606060"
+                    lbl.styles.text_style = "none"
+            except Exception:
+                pass
+
+    def on_list_view_highlighted(self, event):
+        self._update_highlight(event.list_view.index)
+
     def on_list_view_selected(self, event): _safe_dismiss(self, event.list_view.index)
     def action_select(self): _safe_dismiss(self, self.query_one("#menu-list", ListView).index)
     def action_cancel(self): _safe_dismiss(self, -1)
