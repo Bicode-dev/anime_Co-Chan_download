@@ -57,7 +57,7 @@ Les dépendances (`textual`, `yt-dlp`, `requests`, `rich`) s'installent automati
 ### 📱 Android (Termux)
 
 ```bash
-bash Co-chan_download_termux.sh
+bash Co-install.sh
 ```
 
 ---
